@@ -1,17 +1,14 @@
-// lib/main.dart
-
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_auth_demo/auth_gate.dart';
-import 'package:flutter_auth_demo/firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'login_screen.dart';
+import 'signup_screen.dart';
+import 'user_dashboard.dart';
+import 'vendor_dashboard.dart';
+import 'admin_dashboard.dart';
 
 void main() async {
-  // Ensure that Flutter widgets are initialized.
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -21,11 +18,17 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Firebase Auth',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      // AuthGate will decide which screen to show
-      home: const AuthGate(),
       debugShowCheckedModeBanner: false,
+      title: 'Role Based Login',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      initialRoute: '/',
+      routes: {
+        '/': (_) => const LoginScreen(),
+        '/signup': (_) => const SignupScreen(),
+        '/userHome': (_) => const UserDashboard(),
+        '/vendorHome': (_) => const VendorDashboard(),
+        '/adminHome': (context) => const AdminDashboard(),
+      },
     );
   }
 }
