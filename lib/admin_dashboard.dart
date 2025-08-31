@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_service.dart';
 import 'admin_tabs/vendors_tab.dart';
 import 'admin_tabs/users_tab.dart';
@@ -23,10 +22,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     switch (_bottomNavIndex) {
       case 0:
-        mainContent = UsersTab();
+        mainContent = const UsersTab();
         break;
       case 1:
-        mainContent = VendorsTab(); // Use your separate VendorsTab
+        // This is now correct.
+        mainContent = const VendorsTab();
         break;
       case 2:
         mainContent = ReviewsTab();
@@ -36,10 +36,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         mainContent = StatisticsTab();
     }
 
+    // ... rest of the widget is unchanged ...
     return Scaffold(
       body: Stack(
         children: [
-          // Background image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -48,8 +48,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
           ),
-          // Semi-transparent overlay
-          Container(color: Colors.black.withOpacity(0.2)),
+          Container(color: const Color.fromARGB(51, 0, 0, 0)),
           Column(
             children: [
               AppBar(
@@ -58,17 +57,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 title: Text(
                   _getTitle(),
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.white),
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
                 actions: [
                   IconButton(
                     icon: const Icon(Icons.logout, color: Colors.white),
                     onPressed: () async {
                       await AuthService().signOut();
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (_) => HomeScreen()),
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
                         (route) => false,
                       );
                     },
@@ -88,8 +89,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Users'),
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Vendors'),
-          BottomNavigationBarItem(icon: Icon(Icons.rate_review), label: 'Reviews'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Statistics'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.rate_review),
+            label: 'Reviews',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Statistics',
+          ),
         ],
         onTap: (index) {
           setState(() {

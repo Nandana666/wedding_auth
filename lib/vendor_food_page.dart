@@ -4,8 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class VendorFoodPage extends StatelessWidget {
   VendorFoodPage({super.key});
 
-  final CollectionReference vendors =
-      FirebaseFirestore.instance.collection('vendors');
+  final CollectionReference vendors = FirebaseFirestore.instance.collection(
+    'vendors',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -32,9 +33,10 @@ class VendorFoodPage extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: ListTile(
-                  leading: CircleAvatar(
+                  // FIX: Added 'const' to the CircleAvatar constructor.
+                  leading: const CircleAvatar(
                     backgroundColor: Colors.orange,
-                    child: const Icon(Icons.restaurant, color: Colors.white),
+                    child: Icon(Icons.restaurant, color: Colors.white),
                   ),
                   title: Text(vendor['name']),
                   subtitle: Text(vendor['description'] ?? ''),

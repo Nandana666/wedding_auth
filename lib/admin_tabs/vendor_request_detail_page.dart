@@ -1,26 +1,27 @@
+// THIS IMPORT IS THE KEY. The error means your project can't find this file.
 import 'package:flutter/material.dart';
 
 class VendorRequestDetailPage extends StatelessWidget {
   final Map<String, dynamic> vendorData;
 
-  VendorRequestDetailPage({required this.vendorData});
+  const VendorRequestDetailPage({super.key, required this.vendorData});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Vendor Request Details"),
+        title: const Text("Vendor Request Details"),
         backgroundColor: Colors.deepPurple,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Header Card with Name and Service
             Card(
               elevation: 6,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Row(
@@ -29,27 +30,35 @@ class VendorRequestDetailPage extends StatelessWidget {
                       radius: 40,
                       backgroundColor: Colors.deepPurpleAccent,
                       child: Text(
-                        vendorData['name'] != null && vendorData['name'].isNotEmpty
+                        vendorData['name'] != null &&
+                                vendorData['name'].isNotEmpty
                             ? vendorData['name'][0].toUpperCase()
                             : 'V',
-                        style: TextStyle(fontSize: 30, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 30,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    SizedBox(width: 20),
+                    const SizedBox(width: 20),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             vendorData['name'] ?? "No Name",
-                            style: TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
                             vendorData['serviceType'] ?? "Service Not Provided",
                             style: TextStyle(
-                                fontSize: 16, color: Colors.grey[700]),
+                              fontSize: 16,
+                              color: Colors.grey[700],
+                            ),
                           ),
                         ],
                       ),
@@ -58,21 +67,18 @@ class VendorRequestDetailPage extends StatelessWidget {
                 ),
               ),
             ),
-
-            SizedBox(height: 16),
-
-            // Details Card
+            const SizedBox(height: 16),
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: vendorData.entries.map((entry) {
-                    // Skip empty fields
                     if (entry.value == null || entry.value.toString().isEmpty) {
-                      return SizedBox.shrink();
+                      return const SizedBox.shrink();
                     }
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -80,14 +86,20 @@ class VendorRequestDetailPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(
-                              width: 120,
-                              child: Text("${capitalize(entry.key)}:",
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16))),
+                            width: 120,
+                            child: Text(
+                              "${capitalize(entry.key)}:",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
                           Expanded(
-                            child: Text(entry.value.toString(),
-                                style: TextStyle(fontSize: 16)),
+                            child: Text(
+                              entry.value.toString(),
+                              style: const TextStyle(fontSize: 16),
+                            ),
                           ),
                         ],
                       ),
@@ -102,7 +114,6 @@ class VendorRequestDetailPage extends StatelessWidget {
     );
   }
 
-  // Capitalize first letter
   String capitalize(String s) =>
-      s.length > 0 ? '${s[0].toUpperCase()}${s.substring(1)}' : '';
+      s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '';
 }

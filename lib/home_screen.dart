@@ -44,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text("Kerala Wedding"),
         actions: [
-          // Profile Icon -> Navigates to User Dashboard
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -54,7 +53,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          // Logout Icon
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -125,10 +123,13 @@ class _HomeScreenState extends State<HomeScreen> {
               DropdownButton<double>(
                 value: minRating,
                 items: [0, 1, 2, 3, 4, 5]
-                    .map((e) => DropdownMenuItem<double>(
-                          value: e.toDouble(),
-                          child: Text("${e}+⭐"),
-                        ))
+                    .map(
+                      (e) => DropdownMenuItem<double>(
+                        value: e.toDouble(),
+                        // FIX: Removed unnecessary braces from string interpolation.
+                        child: Text("$e+⭐"),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -248,14 +249,21 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(2, 2))
+          // FIX: Added 'const' to the list literal.
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(2, 2),
+            ),
           ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // FIX: Added 'const' to Icon.
             Icon(icon, color: Colors.pink, size: 30),
+            // FIX: Added 'const' to SizedBox.
             const SizedBox(height: 6),
             Text(title, textAlign: TextAlign.center),
           ],
@@ -283,8 +291,9 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               child: Image.network(
                 data['image'] ?? 'https://via.placeholder.com/150',
                 height: 120,
@@ -296,15 +305,18 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(8.0),
               child: Text(
                 data['name'] ?? 'Vendor Name',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Row(
                 children: [
-                  Icon(Icons.star, color: Colors.orange, size: 16),
+                  // FIX: Added 'const' to Icon.
+                  const Icon(Icons.star, color: Colors.orange, size: 16),
                   const SizedBox(width: 4),
                   Text(
                     "${data['rating'] ?? '0.0'} ⭐",

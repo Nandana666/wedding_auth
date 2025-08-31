@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'vendor_requests_tab.dart';
+import 'vendor_requests_tab.dart'; // This import will now work correctly
 import 'declined_vendors_tab.dart';
 
 class VendorsTab extends StatefulWidget {
+  const VendorsTab({super.key});
+
   @override
-  _VendorsTabState createState() => _VendorsTabState();
+  State<VendorsTab> createState() => _VendorsTabState();
 }
 
 class _VendorsTabState extends State<VendorsTab> {
   int _currentSubIndex = 2; // 0=Request, 1=Declined, 2=Accepted
   String searchQuery = '';
-  final CollectionReference vendors = FirebaseFirestore.instance.collection('vendors');
+  final CollectionReference vendors = FirebaseFirestore.instance.collection(
+    'vendors',
+  );
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Top navigation bar
         Container(
           margin: const EdgeInsets.all(8),
           child: Row(
@@ -31,10 +34,7 @@ class _VendorsTabState extends State<VendorsTab> {
             ],
           ),
         ),
-
         const SizedBox(height: 8),
-
-        // Search bar for Accepted vendors only
         if (_currentSubIndex == 2)
           Padding(
             padding: const EdgeInsets.all(8.0),
@@ -44,25 +44,24 @@ class _VendorsTabState extends State<VendorsTab> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (value) => setState(() => searchQuery = value.toLowerCase()),
+              onChanged: (value) =>
+                  setState(() => searchQuery = value.toLowerCase()),
             ),
           ),
-
         const SizedBox(height: 8),
-
-        // Content
         Expanded(
           child: _currentSubIndex == 0
+              // This line will now be valid.
               ? VendorRequestsTab()
               : _currentSubIndex == 1
-                  ? DeclinedVendorsTab()
-                  : _buildAcceptedVendorsList(),
+              ? DeclinedVendorsTab()
+              : _buildAcceptedVendorsList(),
         ),
       ],
     );
   }
 
-  // Navigation button builder
+  // ... (rest of the file is unchanged) ...
   Widget _buildNavButton(String title, int index) {
     bool isSelected = _currentSubIndex == index;
     return ElevatedButton(
@@ -80,12 +79,13 @@ class _VendorsTabState extends State<VendorsTab> {
     );
   }
 
-  // Accepted vendors list with search and responsive layout
   Widget _buildAcceptedVendorsList() {
     return StreamBuilder<QuerySnapshot>(
       stream: vendors.where('status', isEqualTo: 'approved').snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
         final allVendors = snapshot.data!.docs.where((vendor) {
           final name = (vendor['name'] ?? '').toString().toLowerCase();
@@ -93,7 +93,9 @@ class _VendorsTabState extends State<VendorsTab> {
           return name.contains(searchQuery) || email.contains(searchQuery);
         }).toList();
 
-        if (allVendors.isEmpty) return const Center(child: Text('No accepted vendors found'));
+        if (allVendors.isEmpty) {
+          return const Center(child: Text('No accepted vendors found'));
+        }
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -103,13 +105,17 @@ class _VendorsTabState extends State<VendorsTab> {
                 itemBuilder: (context, index) {
                   final vendor = allVendors[index];
                   return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 8,
+                    ),
                     child: ListTile(
                       title: Text(vendor['name'] ?? 'No Name'),
                       subtitle: Text(vendor['email'] ?? ''),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete),
-                        onPressed: () async => await vendors.doc(vendor.id).delete(),
+                        onPressed: () async =>
+                            await vendors.doc(vendor.id).delete(),
                       ),
                     ),
                   );
@@ -135,7 +141,8 @@ class _VendorsTabState extends State<VendorsTab> {
                       subtitle: Text(vendor['email'] ?? ''),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete),
-                        onPressed: () async => await vendors.doc(vendor.id).delete(),
+                        onPressed: () async =>
+                            await vendors.doc(vendor.id).delete(),
                       ),
                     ),
                   );
