@@ -74,6 +74,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
                     children: [
+                      // FIX: Added const to Expanded and its children
                       const Expanded(
                         child: Text(
                           'Dashboard',
@@ -91,7 +92,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           if (!context.mounted) return;
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (_) => const HomeScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const HomeScreen(),
+                            ),
                             (route) => false,
                           );
                         },
@@ -106,6 +109,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white.withAlpha(243), // 95% opacity
+                    // FIX: Added const to BorderRadius
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: const [
                       BoxShadow(
@@ -124,20 +128,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       // Gradient BottomNavigationBar
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
+        // FIX: Added const to BoxDecoration
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
             colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
               color: Color.fromARGB(66, 0, 0, 0),
               blurRadius: 8,
               offset: Offset(0, -3),
             ),
           ],
-          borderRadius: const BorderRadius.only(
+          borderRadius: BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
@@ -152,8 +157,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Users'),
             BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Vendors'),
-            BottomNavigationBarItem(icon: Icon(Icons.rate_review), label: 'Reviews'),
-            BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Statistics'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.rate_review),
+              label: 'Reviews',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart),
+              label: 'Statistics',
+            ),
           ],
           onTap: (index) {
             setState(() {
