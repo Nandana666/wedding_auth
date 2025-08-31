@@ -76,9 +76,10 @@ class _HomeScreenState extends State<HomeScreen> {
               fit: BoxFit.cover,
             ),
           ),
+          // FIX: Replaced deprecated withOpacity
           // Optional: Add a semi-transparent overlay for readability
           Container(
-            color: Colors.black.withOpacity(0.1),
+            color: const Color.fromARGB(25, 0, 0, 0), // 10% opacity black
           ),
           // Main Content
           SingleChildScrollView(
@@ -142,7 +143,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     .map(
                       (e) => DropdownMenuItem<double>(
                         value: e.toDouble(),
-                        // FIX: Removed unnecessary braces from string interpolation.
                         child: Text("$e+⭐"),
                       ),
                     )
@@ -265,7 +265,6 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          // FIX: Added 'const' to the list literal.
           boxShadow: const [
             BoxShadow(
               color: Colors.black12,
@@ -277,9 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // FIX: Added 'const' to Icon.
             Icon(icon, color: Colors.pink, size: 30),
-            // FIX: Added 'const' to SizedBox.
             const SizedBox(height: 6),
             Text(title, textAlign: TextAlign.center),
           ],
@@ -331,7 +328,6 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Row(
                 children: [
-                  // FIX: Added 'const' to Icon.
                   const Icon(Icons.star, color: Colors.orange, size: 16),
                   const SizedBox(width: 4),
                   Text(

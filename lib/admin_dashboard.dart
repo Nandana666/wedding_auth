@@ -25,7 +25,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         mainContent = const UsersTab();
         break;
       case 1:
-        // This is now correct.
         mainContent = const VendorsTab();
         break;
       case 2:
@@ -36,7 +35,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         mainContent = StatisticsTab();
     }
 
-    // ... rest of the widget is unchanged ...
     return Scaffold(
       body: Stack(
         children: [
@@ -48,8 +46,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
           ),
-          // Semi-transparent overlay
-          Container(color: Colors.black.withOpacity(0.2)),
+          // FIX: Replaced deprecated withOpacity
+          Container(color: const Color.fromARGB(51, 0, 0, 0)),
           Column(
             children: [
               AppBar(

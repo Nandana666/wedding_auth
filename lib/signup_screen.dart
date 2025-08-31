@@ -89,7 +89,10 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
           // Optional: dim overlay
-          Container(color: Colors.black.withOpacity(0.2)),
+          // FIX: Replaced deprecated withOpacity
+          Container(
+            color: const Color.fromARGB(51, 0, 0, 0),
+          ), // 20% opacity black
           // Signup form
           Padding(
             padding: const EdgeInsets.all(16),
@@ -121,7 +124,13 @@ class _SignupScreenState extends State<SignupScreen> {
                         labelText: 'Name',
                         labelStyle: const TextStyle(color: Colors.white),
                         filled: true,
-                        fillColor: Colors.black.withOpacity(0.3),
+                        // FIX: Replaced deprecated withOpacity
+                        fillColor: const Color.fromARGB(
+                          77,
+                          0,
+                          0,
+                          0,
+                        ), // 30% opacity black
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -135,7 +144,13 @@ class _SignupScreenState extends State<SignupScreen> {
                         labelText: 'Email',
                         labelStyle: const TextStyle(color: Colors.white),
                         filled: true,
-                        fillColor: Colors.black.withOpacity(0.3),
+                        // FIX: Replaced deprecated withOpacity
+                        fillColor: const Color.fromARGB(
+                          77,
+                          0,
+                          0,
+                          0,
+                        ), // 30% opacity black
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -150,7 +165,13 @@ class _SignupScreenState extends State<SignupScreen> {
                         labelText: 'Password',
                         labelStyle: const TextStyle(color: Colors.white),
                         filled: true,
-                        fillColor: Colors.black.withOpacity(0.3),
+                        // FIX: Replaced deprecated withOpacity
+                        fillColor: const Color.fromARGB(
+                          77,
+                          0,
+                          0,
+                          0,
+                        ), // 30% opacity black
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -163,7 +184,10 @@ class _SignupScreenState extends State<SignupScreen> {
                       style: const TextStyle(color: Colors.white),
                       items: const [
                         DropdownMenuItem(value: 'user', child: Text('User')),
-                        DropdownMenuItem(value: 'vendor', child: Text('Vendor')),
+                        DropdownMenuItem(
+                          value: 'vendor',
+                          child: Text('Vendor'),
+                        ),
                       ],
                       onChanged: (val) => setState(() => _role = val!),
                     ),

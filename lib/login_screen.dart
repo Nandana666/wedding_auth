@@ -17,16 +17,22 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   Future<String?> _getRole(String uid) async {
-    final userDoc =
-        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
     if (userDoc.exists) return 'user';
 
-    final vendorDoc =
-        await FirebaseFirestore.instance.collection('vendors').doc(uid).get();
+    final vendorDoc = await FirebaseFirestore.instance
+        .collection('vendors')
+        .doc(uid)
+        .get();
     if (vendorDoc.exists) return 'vendor';
 
-    final adminDoc =
-        await FirebaseFirestore.instance.collection('Admin').doc(uid).get();
+    final adminDoc = await FirebaseFirestore.instance
+        .collection('Admin')
+        .doc(uid)
+        .get();
     if (adminDoc.exists) return 'admin';
 
     return null;
@@ -114,7 +120,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         labelText: 'Email',
                         labelStyle: const TextStyle(color: Colors.white),
                         filled: true,
-                        fillColor: Colors.black.withOpacity(0.3),
+                        // FIX: Replaced deprecated withOpacity
+                        fillColor: const Color.fromARGB(
+                          77,
+                          0,
+                          0,
+                          0,
+                        ), // 30% opacity black
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -129,7 +141,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         labelText: 'Password',
                         labelStyle: const TextStyle(color: Colors.white),
                         filled: true,
-                        fillColor: Colors.black.withOpacity(0.3),
+                        // FIX: Replaced deprecated withOpacity
+                        fillColor: const Color.fromARGB(
+                          77,
+                          0,
+                          0,
+                          0,
+                        ), // 30% opacity black
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -155,8 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text('Login'),
                     ),
                     TextButton(
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/signup'),
+                      onPressed: () => Navigator.pushNamed(context, '/signup'),
                       child: const Text(
                         'Create an account',
                         style: TextStyle(color: Colors.white),
