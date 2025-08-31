@@ -48,8 +48,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
           ),
-          // Semi-transparent overlay
-          Container(color: Colors.black.withOpacity(0.2)),
+          // Semi-transparent overlay (updated)
+          Container(color: Colors.black.withValues(alpha: 0.2)),
           Column(
             children: [
               AppBar(
