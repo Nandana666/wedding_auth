@@ -67,15 +67,31 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSearchAndFilters(),
-            _buildCategorySection(),
-            _buildVendorSection(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          // Background Image
+          SizedBox.expand(
+            child: Image.asset(
+              'assets/admin_bg.jpg', // Replace with your image path
+              fit: BoxFit.cover,
+            ),
+          ),
+          // Optional: Add a semi-transparent overlay for readability
+          Container(
+            color: Colors.black.withOpacity(0.1),
+          ),
+          // Main Content
+          SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSearchAndFilters(),
+                _buildCategorySection(),
+                _buildVendorSection(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

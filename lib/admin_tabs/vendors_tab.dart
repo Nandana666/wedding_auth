@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'vendor_requests_tab.dart'; // This import will now work correctly
+import 'vendor_requests_tab.dart';
 import 'declined_vendors_tab.dart';
 
 class VendorsTab extends StatefulWidget {
@@ -13,6 +13,7 @@ class VendorsTab extends StatefulWidget {
 class _VendorsTabState extends State<VendorsTab> {
   int _currentSubIndex = 2; // 0=Request, 1=Declined, 2=Accepted
   String searchQuery = '';
+  // Resolved conflict: Chose the cleaner format.
   final CollectionReference vendors = FirebaseFirestore.instance.collection(
     'vendors',
   );
@@ -21,15 +22,17 @@ class _VendorsTabState extends State<VendorsTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Resolved conflict: Kept the descriptive comment and Wrap widget.
+        // Top navigation bar using Wrap to avoid overflow
         Container(
           margin: const EdgeInsets.all(8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Wrap(
+            spacing: 16, // Horizontal spacing
+            runSpacing: 8, // Vertical spacing if wrapped
+            alignment: WrapAlignment.center,
             children: [
               _buildNavButton('Requests', 0),
-              const SizedBox(width: 16),
               _buildNavButton('Declined', 1),
-              const SizedBox(width: 16),
               _buildNavButton('Accepted', 2),
             ],
           ),
@@ -51,7 +54,6 @@ class _VendorsTabState extends State<VendorsTab> {
         const SizedBox(height: 8),
         Expanded(
           child: _currentSubIndex == 0
-              // This line will now be valid.
               ? VendorRequestsTab()
               : _currentSubIndex == 1
               ? DeclinedVendorsTab()
@@ -61,7 +63,6 @@ class _VendorsTabState extends State<VendorsTab> {
     );
   }
 
-  // ... (rest of the file is unchanged) ...
   Widget _buildNavButton(String title, int index) {
     bool isSelected = _currentSubIndex == index;
     return ElevatedButton(
@@ -105,6 +106,7 @@ class _VendorsTabState extends State<VendorsTab> {
                 itemBuilder: (context, index) {
                   final vendor = allVendors[index];
                   return Card(
+                    // Resolved conflict: Chose standard formatting.
                     margin: const EdgeInsets.symmetric(
                       vertical: 4,
                       horizontal: 8,

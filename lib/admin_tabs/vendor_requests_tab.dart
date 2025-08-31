@@ -11,43 +11,46 @@ class VendorRequestsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: vendorsRef.snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("No vendor requests found."));
-        }
+    return Scaffold(
+      appBar: AppBar(title: Text("Vendor Requests")),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: vendorsRef.snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(child: Text("No vendor requests found."));
+          }
 
-        return ListView(
-          children: snapshot.data!.docs.map((doc) {
-            final vendor = doc.data() as Map<String, dynamic>;
+          return ListView(
+            children: snapshot.data!.docs.map((doc) {
+              final vendor = doc.data() as Map<String, dynamic>;
 
-            return Card(
-              margin: const EdgeInsets.all(10),
-              child: ListTile(
-                title: Text(vendor['name'] ?? "No Name"),
-                subtitle: Text("Service: ${vendor['serviceType'] ?? '-'}"),
-                trailing: ElevatedButton(
-                  child: const Text("View Details"),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => VendorRequestDetailPage(
-                          vendorData: vendor,
+              return Card(
+                margin: EdgeInsets.all(10),
+                child: ListTile(
+                  title: Text(vendor['name'] ?? "No Name"),
+                  subtitle: Text("Service: ${vendor['serviceType'] ?? '-'}"),
+                  trailing: ElevatedButton(
+                    child: Text("View Details"),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => VendorRequestDetailPage(
+                            vendorData: vendor,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            );
-          }).toList(),
-        );
-      },
+              );
+            }).toList(),
+          );
+        },
+      ),
     );
   }
 }
