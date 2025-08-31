@@ -5,51 +5,106 @@ import 'vendor_request_detail_page.dart';
 class VendorRequestsTab extends StatelessWidget {
   VendorRequestsTab({super.key});
 
-  final CollectionReference vendorsRef = FirebaseFirestore.instance.collection(
-    'vendor_requests',
-  );
+  final CollectionReference vendorsRef =
+      FirebaseFirestore.instance.collection('vendor_requests');
 
   @override
   Widget build(BuildContext context) {
-    // IMPROVEMENT: Removed the Scaffold and AppBar. A tab's content should not have its own Scaffold.
     return StreamBuilder<QuerySnapshot>(
       stream: vendorsRef.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // FIX: Added const
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          // FIX: Added const
-          return const Center(child: Text("No vendor requests found."));
+          return const Center(
+              child: Text("No new vendor requests.",
+                  style: TextStyle(color: Colors.grey)));
         }
 
-        return ListView(
-          children: snapshot.data!.docs.map((doc) {
-            final vendor = doc.data() as Map<String, dynamic>;
-
-            return Card(
-              // FIX: Added const
-              margin: const EdgeInsets.all(10),
-              child: ListTile(
-                title: Text(vendor['name'] ?? "No Name"),
-                subtitle: Text("Service: ${vendor['serviceType'] ?? '-'}"),
-                trailing: ElevatedButton(
-                  // FIX: Added const
-                  child: const Text("View Details"),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            VendorRequestDetailPage(vendorData: vendor),
-                      ),
-                    );
-                  },
-                ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: Text(
+                'Pending Approval',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
               ),
-            );
-          }).toList(),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: snapshot.data!.docs.map((doc) {
+                  final vendor = doc.data() as Map<String, dynamic>;
+
+                  return Card(
+                    elevation: 2,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.storefront_outlined,
+                              color: Colors.blue.shade400, size: 30),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(vendor['name'] ?? "No Name",
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "Service: ${vendor['serviceType'] ?? '-'}",
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFF472B6), Color(0xFF60A5FA)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        VendorRequestDetailPage(
+                                            vendorData: vendor),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                              ),
+                              child: const Text("View", style: TextStyle(color: Colors.white)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
         );
       },
     );
