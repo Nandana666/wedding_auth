@@ -20,24 +20,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget build(BuildContext context) {
     Widget mainContent;
 
+    // Assign main content based on selected tab
     switch (_bottomNavIndex) {
       case 0:
-        mainContent = const UsersTab();
+        mainContent = const UsersTab(); // const constructor available
         break;
       case 1:
-        mainContent = const VendorsTab();
+        mainContent = const VendorsTab(); // const constructor available
         break;
       case 2:
-        mainContent = ReviewsTab();
+        mainContent = ReviewsTab(); // cannot be const
         break;
       case 3:
       default:
-        mainContent = StatisticsTab();
+        mainContent = StatisticsTab(); // cannot be const
     }
 
     return Scaffold(
       body: Stack(
         children: [
+          // Background image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -46,77 +48,120 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
           ),
-          // FIX: Replaced deprecated withOpacity
-          Container(color: const Color.fromARGB(51, 0, 0, 0)),
+          // Dark overlay for readability
+          Container(color: const Color.fromARGB(102, 0, 0, 0)), // 40% opacity
+
           Column(
             children: [
-              AppBar(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                title: Text(
-                  _getTitle(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+              // Gradient AppBar with status bar padding
+              Container(
+                padding: const EdgeInsets.only(top: 40),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color.fromARGB(97, 0, 0, 0),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Dashboard',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 22,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout, color: Colors.white),
+                        onPressed: () async {
+                          await AuthService().signOut();
+                          if (!context.mounted) return;
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (_) => const HomeScreen()),
+                            (route) => false,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.logout, color: Colors.white),
-                    onPressed: () async {
-                      await AuthService().signOut();
-                      if (!context.mounted) return;
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (_) => const HomeScreen()),
-                        (route) => false,
-                      );
-                    },
-                  ),
-                ],
               ),
-              Expanded(child: mainContent),
+              // Main content container
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(243), // 95% opacity
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color.fromARGB(66, 0, 0, 0),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: mainContent, // dynamic, cannot be const
+                ),
+              ),
             ],
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _bottomNavIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey.shade700,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Users'),
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Vendors'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.rate_review),
-            label: 'Reviews',
+      // Gradient BottomNavigationBar
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Statistics',
+          boxShadow: const [
+            BoxShadow(
+              color: Color.fromARGB(66, 0, 0, 0),
+              blurRadius: 8,
+              offset: Offset(0, -3),
+            ),
+          ],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
-        ],
-        onTap: (index) {
-          setState(() {
-            _bottomNavIndex = index;
-          });
-        },
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _bottomNavIndex,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: Colors.white,
+          unselectedItemColor: Colors.white70,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Users'),
+            BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Vendors'),
+            BottomNavigationBarItem(icon: Icon(Icons.rate_review), label: 'Reviews'),
+            BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Statistics'),
+          ],
+          onTap: (index) {
+            setState(() {
+              _bottomNavIndex = index;
+            });
+          },
+        ),
       ),
     );
-  }
-
-  String _getTitle() {
-    switch (_bottomNavIndex) {
-      case 0:
-        return 'Users';
-      case 1:
-        return 'Vendors';
-      case 2:
-        return 'Reviews';
-      case 3:
-      default:
-        return 'Statistics';
-    }
   }
 }
