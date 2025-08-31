@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
-import 'user_dashboard.dart';
+//import 'user_dashboard.dart';
 import 'vendor_dashboard.dart';
 import 'admin_dashboard.dart';
+import 'home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (_) => const LoginScreen(),
         '/signup': (_) => const SignupScreen(),
-        '/userHome': (_) => const UserDashboard(),
+        '/home': (context) => const HomeScreen(),
         '/vendorHome': (_) => const VendorDashboard(),
         '/adminHome': (context) => const AdminDashboard(),
       },

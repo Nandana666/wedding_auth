@@ -52,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       switch (role) {
         case 'user':
-          Navigator.pushReplacementNamed(context, '/userHome');
+          Navigator.pushReplacementNamed(context, '/home');
           break;
         case 'vendor':
           Navigator.pushReplacementNamed(context, '/vendorHome');
