@@ -1,7 +1,8 @@
+// lib/admin_tabs/vendors_tab.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'vendor_requests_tab.dart';
-import 'declined_vendors_tab.dart';
+import 'vendor_request_detail_page.dart'; // Still needed for navigation
 
 class VendorsTab extends StatefulWidget {
   const VendorsTab({super.key});
@@ -11,8 +12,7 @@ class VendorsTab extends StatefulWidget {
 }
 
 class _VendorsTabState extends State<VendorsTab> {
-  // FIX: Set default view to 'Accepted' (index 0)
-  int _currentSubIndex = 0;
+  int _currentSubIndex = 0; // Default: Accepted
   String searchQuery = '';
   final CollectionReference vendors = FirebaseFirestore.instance.collection(
     'vendors',
@@ -31,7 +31,6 @@ class _VendorsTabState extends State<VendorsTab> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // FIX: Reordered the navigation buttons
                 _buildNavButton('Accepted', 0),
                 _buildNavButton('Requests', 1),
                 _buildNavButton('Declined', 2),
@@ -39,13 +38,13 @@ class _VendorsTabState extends State<VendorsTab> {
             ),
           ),
 
-          // FIX: Updated condition to show search bar when 'Accepted' is selected
+          // Search bar (now only shown for the 'Accepted' tab)
           if (_currentSubIndex == 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search by name or email...',
+                  hintText: 'Search accepted vendors...',
                   prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
                   filled: true,
                   fillColor: Colors.grey.shade200,
@@ -59,15 +58,14 @@ class _VendorsTabState extends State<VendorsTab> {
               ),
             ),
 
-          // Content Area
+          // Content Area using a single, dynamic list builder
           Expanded(
             child: IndexedStack(
               index: _currentSubIndex,
-              // FIX: Reordered the children to match the new tab indices
               children: [
-                _buildAcceptedVendorsList(), // Index 0
-                VendorRequestsTab(), // Index 1
-                DeclinedVendorsTab(), // Index 2
+                _buildVendorsList(status: 'approved'), // Index 0
+                _buildVendorsList(status: 'pending_approval'), // Index 1
+                _buildVendorsList(status: 'declined'), // Index 2
               ],
             ),
           ),
@@ -76,7 +74,8 @@ class _VendorsTabState extends State<VendorsTab> {
     );
   }
 
-  // Custom Navigation Button Widget (No changes needed here)
+  // --- WIDGET BUILDER METHODS ---
+
   Widget _buildNavButton(String title, int index) {
     bool isSelected = _currentSubIndex == index;
     return Expanded(
@@ -109,70 +108,126 @@ class _VendorsTabState extends State<VendorsTab> {
     );
   }
 
-  // Redesigned Accepted Vendors List (No changes needed here)
-  Widget _buildAcceptedVendorsList() {
+  // A single, reusable method to build the list for any status
+  Widget _buildVendorsList({required String status}) {
     return StreamBuilder<QuerySnapshot>(
-      stream: vendors.where('status', isEqualTo: 'approved').snapshots(),
+      stream: vendors.where('status', isEqualTo: status).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final allVendors = snapshot.data!.docs.where((vendor) {
-          final name = (vendor['name'] ?? '').toString().toLowerCase();
-          final email = (vendor['email'] ?? '').toString().toLowerCase();
-          return name.contains(searchQuery) || email.contains(searchQuery);
-        }).toList();
+        var vendorDocs = snapshot.data!.docs;
 
-        if (allVendors.isEmpty) {
-          return const Center(
+        // Apply search query only for the 'approved' list
+        if (status == 'approved' && searchQuery.isNotEmpty) {
+          vendorDocs = vendorDocs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = (data['name'] ?? '').toString().toLowerCase();
+            final email = (data['email'] ?? '').toString().toLowerCase();
+            return name.contains(searchQuery) || email.contains(searchQuery);
+          }).toList();
+        }
+
+        if (vendorDocs.isEmpty) {
+          return Center(
             child: Text(
-              'No accepted vendors found.',
-              style: TextStyle(color: Colors.grey),
+              'No vendors found with status: $status',
+              style: const TextStyle(color: Colors.grey),
             ),
           );
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: allVendors.length,
+          itemCount: vendorDocs.length,
           itemBuilder: (context, index) {
-            final vendor = allVendors[index].data() as Map<String, dynamic>;
-            final vendorId = allVendors[index].id;
-            final name = vendor['name'] ?? 'No Name';
+            final vendor = vendorDocs[index];
+            final vendorData = vendor.data() as Map<String, dynamic>;
+            final vendorId = vendor.id;
+            final name = vendorData['name'] ?? 'No Name';
 
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade100,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'V',
-                    style: TextStyle(
-                      color: Colors.blue.shade800,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                title: Text(
-                  name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(vendor['email'] ?? ''),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () async => await vendors.doc(vendorId).delete(),
-                  tooltip: 'Delete Vendor',
-                ),
-              ),
+            // Customize the card based on the status
+            return _buildVendorCard(
+              context: context,
+              vendorId: vendorId,
+              vendorData: vendorData,
+              status: status,
+              name: name,
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildVendorCard({
+    required BuildContext context,
+    required String vendorId,
+    required Map<String, dynamic> vendorData,
+    required String status,
+    required String name,
+  }) {
+    Color cardColor = Colors.white;
+    Color iconColor = Colors.blue.shade100;
+    Color iconTextColor = Colors.blue.shade800;
+    Widget trailingWidget;
+
+    switch (status) {
+      case 'pending_approval':
+        cardColor = Colors.amber.shade50;
+        iconColor = Colors.amber.shade100;
+        iconTextColor = Colors.amber.shade800;
+        trailingWidget = ElevatedButton(
+          child: const Text('Review'),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VendorRequestDetailPage(
+                vendorId: vendorId,
+                vendorData: vendorData,
+              ),
+            ),
+          ),
+        );
+        break;
+      case 'declined':
+        cardColor = Colors.red.shade50;
+        iconColor = Colors.red.shade100;
+        iconTextColor = Colors.red.shade800;
+        trailingWidget = IconButton(
+          icon: const Icon(Icons.delete_forever, color: Colors.red),
+          onPressed: () async => await vendors.doc(vendorId).delete(),
+          tooltip: 'Delete Permanently',
+        );
+        break;
+      case 'approved':
+      default:
+        trailingWidget = IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          onPressed: () async => await vendors.doc(vendorId).delete(),
+          tooltip: 'Delete Vendor',
+        );
+        break;
+    }
+
+    return Card(
+      elevation: 2,
+      color: cardColor,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: iconColor,
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : 'V',
+            style: TextStyle(color: iconTextColor, fontWeight: FontWeight.bold),
+          ),
+        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(vendorData['email'] ?? ''),
+        trailing: trailingWidget,
+      ),
     );
   }
 }

@@ -1,3 +1,5 @@
+// lib/signup_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,14 +20,15 @@ class _SignupScreenState extends State<SignupScreen> {
   String _role = 'user';
   bool _isSigningUp = false;
   String? _errorMessage;
-  bool _isPasswordVisible = false; // State for password visibility
+  bool _isPasswordVisible = false;
 
-  // --- Your existing signup logic remains unchanged ---
   Future<void> _signup() async {
     if (_isSigningUp) return;
 
-    if (_name.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'Please enter your name.');
+    if (_name.text.trim().isEmpty ||
+        _email.text.trim().isEmpty ||
+        _password.text.trim().isEmpty) {
+      setState(() => _errorMessage = 'Please fill in all fields.');
       return;
     }
     if (!_email.text.contains('@') || !_email.text.contains('.')) {
@@ -43,6 +46,7 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      // 1. Create the user in Firebase Authentication
       UserCredential cred = await _auth.createUserWithEmailAndPassword(
         email: _email.text.trim(),
         password: _password.text.trim(),
@@ -50,18 +54,48 @@ class _SignupScreenState extends State<SignupScreen> {
 
       final uid = cred.user!.uid;
 
-      final data = {
-        'email': _email.text.trim(),
-        'name': _name.text.trim(),
-        'role': _role,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
-
-      final col = _role == 'vendor' ? 'vendors' : 'users';
-      await FirebaseFirestore.instance.collection(col).doc(uid).set(data);
+      // 2. Based on the role, create a document in the appropriate collection
+      if (_role == 'user') {
+        // --- If a USER signs up, create a document in the 'users' collection ---
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'name': _name.text.trim(),
+          'email': _email.text.trim(),
+          'role': 'user',
+          'createdAt': FieldValue.serverTimestamp(),
+          // Add other default user fields here if needed
+        });
+      } else {
+        // --- If a VENDOR signs up, create their initial profile in the 'vendors' collection ---
+        await FirebaseFirestore.instance.collection('vendors').doc(uid).set({
+          'name': _name.text.trim(),
+          'email': _email.text.trim(),
+          'status':
+              'incomplete', // CRITICAL: The vendor must complete their profile
+          'role': 'vendor',
+          'category': 'Not Specified',
+          'description': '',
+          'location': '',
+          'price': '',
+          'image': '',
+          'rating': 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       if (!mounted) return;
-      Navigator.pop(context);
+
+      // 3. Show a relevant confirmation message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _role == 'user'
+                ? 'Account created successfully! You can now log in.'
+                : 'Account created! Please log in to complete your vendor profile.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context); // Go back to the login screen
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
@@ -80,10 +114,9 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Set a base background color
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // 1. Top Gradient Background
           Positioned(
             top: 0,
             left: 0,
@@ -92,17 +125,13 @@ class _SignupScreenState extends State<SignupScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Color(0xFFFDEBFF), // Lighter pink/lavender
-                    Color(0xFFE1D5FF), // Soft lavender
-                  ],
+                  colors: [Color(0xFFFDEBFF), Color(0xFFE1D5FF)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
               ),
             ),
           ),
-          // 2. Back Button
           Positioned(
             top: 50,
             left: 10,
@@ -111,8 +140,6 @@ class _SignupScreenState extends State<SignupScreen> {
               onPressed: () => Navigator.pop(context),
             ),
           ),
-
-          // 3. Main Content Form
           Positioned(
             top: MediaQuery.of(context).size.height * 0.2,
             left: 0,
@@ -157,8 +184,6 @@ class _SignupScreenState extends State<SignupScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 30),
-
-                    // --- FORM FIELDS ---
                     _buildTextField(controller: _name, hintText: 'Full Name'),
                     const SizedBox(height: 20),
                     _buildTextField(
@@ -170,7 +195,6 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: 20),
                     _buildRoleDropdown(),
                     const SizedBox(height: 20),
-
                     if (_errorMessage != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
@@ -183,11 +207,9 @@ class _SignupScreenState extends State<SignupScreen> {
                           textAlign: TextAlign.center,
                         ),
                       ),
-
                     const SizedBox(height: 10),
                     _buildSignupButton(),
                     const SizedBox(height: 20),
-
                     _buildLoginLink(),
                   ],
                 ),
@@ -199,7 +221,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // --- Helper Widgets for Cleaner Build Method ---
   Widget _buildTextField({
     required TextEditingController controller,
     required String hintText,
@@ -286,8 +307,7 @@ class _SignupScreenState extends State<SignupScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            // FIX: Replaced deprecated withOpacity
-            color: Colors.pink.withAlpha(77), // 30% opacity
+            color: Colors.pink.withAlpha(77),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),

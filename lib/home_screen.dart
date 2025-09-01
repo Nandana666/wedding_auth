@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // This line will work after the fix
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'vendor_makeup_page.dart';
@@ -84,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Search + Filters Section
   Widget _buildSearchAndFilters() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -164,7 +163,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Categories Section
   Widget _buildCategorySection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,7 +190,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Vendor Grid Section
   Widget _buildVendorSection() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -207,16 +204,22 @@ class _HomeScreenState extends State<HomeScreen> {
           StreamBuilder<QuerySnapshot>(
             stream: _firestore
                 .collection('vendors')
-                .where('status', isEqualTo: 'approved')
+                .where(
+                  'status',
+                  isEqualTo: 'approved',
+                ) // This is the server-side query
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('No vendors available'));
+                return const Center(
+                  child: Text('No approved vendors available yet.'),
+                );
               }
 
+              // This is the client-side filtering
               final vendors = snapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final name = (data['name'] ?? '').toString().toLowerCase();
@@ -263,7 +266,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Category Card Navigation
   Widget _categoryCard(String title, IconData icon) {
     return GestureDetector(
       onTap: () {
@@ -322,7 +324,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Vendor Card
   Widget _vendorCard(DocumentSnapshot vendor) {
     final data = vendor.data() as Map<String, dynamic>;
     final vendorId = vendor.id;

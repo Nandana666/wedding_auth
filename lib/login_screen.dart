@@ -17,7 +17,6 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   bool _isPasswordVisible = false;
 
-  // --- Your existing login logic remains unchanged ---
   Future<String?> _getRole(String uid) async {
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
@@ -25,17 +24,28 @@ class _LoginScreenState extends State<LoginScreen> {
         .get();
     if (userDoc.exists) return 'user';
 
-    final vendorDoc = await FirebaseFirestore.instance
-        .collection('vendors')
-        .doc(uid)
-        .get();
-    if (vendorDoc.exists) return 'vendor';
-
     final adminDoc = await FirebaseFirestore.instance
         .collection('Admin')
         .doc(uid)
         .get();
     if (adminDoc.exists) return 'admin';
+
+    final vendorDoc = await FirebaseFirestore.instance
+        .collection('vendors')
+        .doc(uid)
+        .get();
+    if (vendorDoc.exists) {
+      final status = (vendorDoc.data() as Map<String, dynamic>)['status'];
+      switch (status) {
+        case 'approved':
+          return 'vendor_approved';
+        case 'incomplete':
+        case 'pending_approval':
+          return 'vendor_pending';
+        case 'declined':
+          return 'vendor_declined';
+      }
+    }
 
     return null;
   }
@@ -62,14 +72,21 @@ class _LoginScreenState extends State<LoginScreen> {
         case 'user':
           Navigator.pushReplacementNamed(context, '/home');
           break;
-        case 'vendor':
-          Navigator.pushReplacementNamed(context, '/vendorHome');
+        case 'vendor_approved':
+        case 'vendor_pending':
+          Navigator.pushReplacementNamed(context, '/vendorDashboard');
           break;
         case 'admin':
           Navigator.pushReplacementNamed(context, '/adminHome');
           break;
+        case 'vendor_declined':
+          setState(
+            () => _errorMessage = 'Your vendor application was declined.',
+          );
+          await _auth.signOut();
+          break;
         default:
-          setState(() => _errorMessage = 'Role not found for this account.');
+          setState(() => _errorMessage = 'Account not found or access denied.');
       }
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -84,7 +101,6 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // 1. Top Gradient Background
           Positioned(
             top: 0,
             left: 0,
@@ -100,8 +116,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-
-          // 2. Main Content Form
           Positioned(
             top: MediaQuery.of(context).size.height * 0.2,
             left: 0,
@@ -146,8 +160,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 40),
-
-                    // --- FORM FIELDS ---
                     _buildTextField(
                       controller: _email,
                       hintText: 'Email Address',
@@ -155,7 +167,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 20),
                     _buildPasswordField(),
                     const SizedBox(height: 20),
-
                     if (_errorMessage != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
@@ -168,11 +179,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center,
                         ),
                       ),
-
                     const SizedBox(height: 20),
                     _buildLoginButton(),
                     const SizedBox(height: 20),
-
                     _buildSignupLink(),
                   ],
                 ),
@@ -184,7 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- Helper Widgets ---
   Widget _buildTextField({
     required TextEditingController controller,
     required String hintText,
@@ -249,7 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.pink.withAlpha(77), // 30% opacity
+            color: Colors.pink.withAlpha(77),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),

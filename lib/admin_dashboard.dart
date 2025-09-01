@@ -1,10 +1,12 @@
+// lib/admin_dashboard.dart
+
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'admin_tabs/vendors_tab.dart';
 import 'admin_tabs/users_tab.dart';
 import 'admin_tabs/reviews_tab.dart';
 import 'admin_tabs/statistics_tab.dart';
-import 'home_screen.dart';
+import 'login_screen.dart'; // Assuming login screen is the root for logout
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -14,164 +16,138 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  int _bottomNavIndex = 3; // Default: Statistics
+  int _bottomNavIndex = 0; // Default to the first tab: Users
+
+  // A list of the widgets to display in the body
+  static final List<Widget> _widgetOptions = <Widget>[
+    const UsersTab(),
+    const VendorsTab(),
+    ReviewsTab(), // Cannot be const
+    StatisticsTab(), // Cannot be const
+  ];
+
+  // A list of titles corresponding to each tab
+  static const List<String> _widgetTitles = <String>[
+    'User Management',
+    'Vendor Management',
+    'Reviews',
+    'Statistics',
+  ];
 
   @override
   Widget build(BuildContext context) {
-    Widget mainContent;
-
-    // Assign main content based on selected tab
-    switch (_bottomNavIndex) {
-      case 0:
-        mainContent = const UsersTab(); // const constructor available
-        break;
-      case 1:
-        mainContent = const VendorsTab(); // const constructor available
-        break;
-      case 2:
-        mainContent = ReviewsTab(); // cannot be const
-        break;
-      case 3:
-      default:
-        mainContent = StatisticsTab(); // cannot be const
-    }
-
     return Scaffold(
-      body: Stack(
+      backgroundColor: Colors.grey.shade100, // Clean background
+      body: Column(
         children: [
-          // Background image
+          // --- Custom Gradient Header ---
           Container(
+            padding: EdgeInsets.only(
+              top:
+                  MediaQuery.of(context).padding.top + 16, // Handles status bar
+              bottom: 16,
+              left: 16,
+              right: 16,
+            ),
             decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/admin_bg.jpg'),
-                fit: BoxFit.cover,
+              gradient: LinearGradient(
+                colors: [Color(0xFF6A11CB), Color(0xFF2575FC)], // Purple-Blue
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _widgetTitles.elementAt(_bottomNavIndex), // Dynamic title
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  tooltip: 'Log Out',
+                  onPressed: () async {
+                    await AuthService().signOut();
+                    if (!context.mounted) return;
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-          // Dark overlay for readability
-          Container(color: const Color.fromARGB(102, 0, 0, 0)), // 40% opacity
 
-          Column(
-            children: [
-              // Gradient AppBar with status bar padding
-              Container(
-                padding: const EdgeInsets.only(top: 40),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color.fromARGB(97, 0, 0, 0),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+          // --- Main Content Area ---
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    children: [
-                      // FIX: Added const to Expanded and its children
-                      const Expanded(
-                        child: Text(
-                          'Dashboard',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontSize: 22,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.white),
-                        onPressed: () async {
-                          await AuthService().signOut();
-                          if (!context.mounted) return;
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const HomeScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                // ClipRRect ensures the child widget conforms to the card's rounded corners
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: _widgetOptions.elementAt(_bottomNavIndex),
                 ),
               ),
-              // Main content container
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(243), // 95% opacity
-                    // FIX: Added const to BorderRadius
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color.fromARGB(66, 0, 0, 0),
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: mainContent, // dynamic, cannot be const
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
-      // Gradient BottomNavigationBar
-      bottomNavigationBar: Container(
-        // FIX: Added const to BoxDecoration
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _bottomNavIndex,
+        onTap: (index) {
+          setState(() {
+            _bottomNavIndex = index;
+          });
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF6A11CB), // Active tab color
+        unselectedItemColor: Colors.grey.shade600,
+        backgroundColor: Colors.white,
+        elevation: 10.0,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Users',
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Color.fromARGB(66, 0, 0, 0),
-              blurRadius: 8,
-              offset: Offset(0, -3),
-            ),
-          ],
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.store_outlined),
+            activeIcon: Icon(Icons.store),
+            label: 'Vendors',
           ),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _bottomNavIndex,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white70,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Users'),
-            BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Vendors'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.rate_review),
-              label: 'Reviews',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
-              label: 'Statistics',
-            ),
-          ],
-          onTap: (index) {
-            setState(() {
-              _bottomNavIndex = index;
-            });
-          },
-        ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.rate_review_outlined),
+            activeIcon: Icon(Icons.rate_review),
+            label: 'Reviews',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart_outlined),
+            activeIcon: Icon(Icons.bar_chart),
+            label: 'Statistics',
+          ),
+        ],
       ),
     );
   }

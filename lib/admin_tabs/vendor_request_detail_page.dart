@@ -1,10 +1,91 @@
-// THIS IMPORT IS THE KEY. The error means your project can't find this file.
-import 'package:flutter/material.dart';
+// lib/admin_tabs/vendor_request_detail_page.dart
 
-class VendorRequestDetailPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // Add this import for date formatting
+
+class VendorRequestDetailPage extends StatefulWidget {
+  final String vendorId;
   final Map<String, dynamic> vendorData;
 
-  const VendorRequestDetailPage({super.key, required this.vendorData});
+  const VendorRequestDetailPage({
+    super.key,
+    required this.vendorId,
+    required this.vendorData,
+  });
+
+  @override
+  State<VendorRequestDetailPage> createState() =>
+      _VendorRequestDetailPageState();
+}
+
+class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
+  bool _isProcessing = false;
+
+  Future<void> _approveVendor() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('vendors')
+          .doc(widget.vendorId)
+          .update({
+            'status': 'approved',
+            'approvedAt': FieldValue.serverTimestamp(),
+          });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vendor approved successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error approving vendor: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _declineVendor() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('vendors')
+          .doc(widget.vendorId)
+          .update({'status': 'declined'});
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vendor has been declined.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error declining vendor: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,9 +111,9 @@ class VendorRequestDetailPage extends StatelessWidget {
                       radius: 40,
                       backgroundColor: Colors.deepPurpleAccent,
                       child: Text(
-                        vendorData['name'] != null &&
-                                vendorData['name'].isNotEmpty
-                            ? vendorData['name'][0].toUpperCase()
+                        widget.vendorData['name'] != null &&
+                                widget.vendorData['name'].isNotEmpty
+                            ? widget.vendorData['name'][0].toUpperCase()
                             : 'V',
                         style: const TextStyle(
                           fontSize: 30,
@@ -46,7 +127,7 @@ class VendorRequestDetailPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            vendorData['name'] ?? "No Name",
+                            widget.vendorData['name'] ?? "No Name",
                             style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -54,7 +135,8 @@ class VendorRequestDetailPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            vendorData['serviceType'] ?? "Service Not Provided",
+                            widget.vendorData['category'] ??
+                                "Category not specified",
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[700],
@@ -76,10 +158,32 @@ class VendorRequestDetailPage extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  children: vendorData.entries.map((entry) {
-                    if (entry.value == null || entry.value.toString().isEmpty) {
+                  children: widget.vendorData.entries.map((entry) {
+                    if (entry.value == null ||
+                        entry.value.toString().isEmpty ||
+                        [
+                          'status',
+                          'role',
+                          'approvedAt',
+                          'rating',
+                          'image',
+                        ].contains(entry.key)) {
                       return const SizedBox.shrink();
                     }
+
+                    // --- FIX: Logic to format the timestamp ---
+                    String displayValue;
+                    if (entry.key == 'createdAt' && entry.value is Timestamp) {
+                      final dateTime = (entry.value as Timestamp).toDate();
+                      // Format: e.g., "30 Aug 2025, 03:42 PM"
+                      displayValue = DateFormat(
+                        'dd MMM yyyy, hh:mm a',
+                      ).format(dateTime);
+                    } else {
+                      displayValue = entry.value.toString();
+                    }
+                    // --- END OF FIX ---
+
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Row(
@@ -97,7 +201,7 @@ class VendorRequestDetailPage extends StatelessWidget {
                           ),
                           Expanded(
                             child: Text(
-                              entry.value.toString(),
+                              displayValue, // Use the formatted value
                               style: const TextStyle(fontSize: 16),
                             ),
                           ),
@@ -111,6 +215,50 @@ class VendorRequestDetailPage extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: _isProcessing
+          ? const LinearProgressIndicator()
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      label: const Text(
+                        'Decline',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      onPressed: _declineVendor,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.check, color: Colors.white),
+                      label: const Text(
+                        'Approve',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      onPressed: _approveVendor,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
