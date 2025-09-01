@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Add this import for date formatting
+import 'package:intl/intl.dart';
 
 class VendorRequestDetailPage extends StatefulWidget {
   final String vendorId;
@@ -89,6 +89,8 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final String? imageUrl = widget.vendorData['image'];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Vendor Request Details"),
@@ -110,16 +112,21 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: Colors.deepPurpleAccent,
-                      child: Text(
-                        widget.vendorData['name'] != null &&
-                                widget.vendorData['name'].isNotEmpty
-                            ? widget.vendorData['name'][0].toUpperCase()
-                            : 'V',
-                        style: const TextStyle(
-                          fontSize: 30,
-                          color: Colors.white,
-                        ),
-                      ),
+                      backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
+                          ? NetworkImage(imageUrl)
+                          : null,
+                      child: (imageUrl == null || imageUrl.isEmpty)
+                          ? Text(
+                              widget.vendorData['name'] != null &&
+                                      widget.vendorData['name'].isNotEmpty
+                                  ? widget.vendorData['name'][0].toUpperCase()
+                                  : 'V',
+                              style: const TextStyle(
+                                fontSize: 30,
+                                color: Colors.white,
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 20),
                     Expanded(
@@ -171,18 +178,15 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                       return const SizedBox.shrink();
                     }
 
-                    // --- FIX: Logic to format the timestamp ---
                     String displayValue;
                     if (entry.key == 'createdAt' && entry.value is Timestamp) {
                       final dateTime = (entry.value as Timestamp).toDate();
-                      // Format: e.g., "30 Aug 2025, 03:42 PM"
                       displayValue = DateFormat(
                         'dd MMM yyyy, hh:mm a',
                       ).format(dateTime);
                     } else {
                       displayValue = entry.value.toString();
                     }
-                    // --- END OF FIX ---
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -201,7 +205,7 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                           ),
                           Expanded(
                             child: Text(
-                              displayValue, // Use the formatted value
+                              displayValue,
                               style: const TextStyle(fontSize: 16),
                             ),
                           ),

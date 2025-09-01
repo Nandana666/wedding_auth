@@ -1,8 +1,11 @@
 // lib/edit_vendor_profile_page.dart
 
+import 'dart:io'; // Required for the File type
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart'; // Import for picking images
+import 'package:cloudinary_public/cloudinary_public.dart'; // Import for Cloudinary uploads
 
 class EditVendorProfilePage extends StatefulWidget {
   const EditVendorProfilePage({super.key});
@@ -17,13 +20,17 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   late TextEditingController _descriptionController;
   late TextEditingController _priceController;
   late TextEditingController _locationController;
-  String? _selectedCategory; // State variable for the dropdown
+  String? _selectedCategory;
+
+  // --- NEW STATE VARIABLES FOR IMAGE HANDLING ---
+  File? _imageFile; // To hold the newly picked image file
+  final ImagePicker _picker = ImagePicker();
+  String? _networkImageUrl; // To hold the existing image URL from Firestore
 
   bool _isLoading = true;
   bool _isSaving = false;
   String? _errorMessage;
 
-  // List of categories for the dropdown menu
   final List<String> _categories = [
     'Makeup',
     'Catering',
@@ -57,7 +64,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
           _descriptionController.text = data['description'] ?? '';
           _priceController.text = data['price']?.toString() ?? '';
           _locationController.text = data['location'] ?? '';
-          // Load the category, handle 'Not Specified' case
+          _networkImageUrl = data['image']; // Load existing image URL
+
           final categoryFromServer = data['category'];
           if (_categories.contains(categoryFromServer)) {
             _selectedCategory = categoryFromServer;
@@ -70,26 +78,73 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     }
   }
 
-  Future<void> _saveChanges() async {
-    // Validate the form first
-    if (!_formKey.currentState!.validate()) return;
+  // --- FUNCTION TO PICK AN IMAGE FROM THE GALLERY ---
+  Future<void> _pickImage() async {
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+    }
+  }
 
-    // Also validate that a category has been selected
-    if (_selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a service category.'),
-          backgroundColor: Colors.red,
+  // --- FUNCTION TO UPLOAD THE IMAGE TO CLOUDINARY ---
+  Future<String?> _uploadImage(File image) async {
+    // !!! IMPORTANT: Replace with your Cloudinary details !!!
+    final cloudinary = CloudinaryPublic(
+      'dc9kib0cr',
+      'ml_default',
+      cache: false,
+    );
+
+    try {
+      CloudinaryResponse response = await cloudinary.uploadFile(
+        CloudinaryFile.fromFile(
+          image.path,
+          resourceType: CloudinaryResourceType.Image,
         ),
       );
+      return response.secureUrl; // This is the public URL of the uploaded image
+    } catch (e) {
+      // Handle upload error
+      return null;
+    }
+  }
+
+  // --- UPDATED SAVE FUNCTION ---
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate() || _selectedCategory == null) {
+      if (_selectedCategory == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a service category.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
     }
 
     setState(() => _isSaving = true);
     final user = FirebaseAuth.instance.currentUser;
+    String? imageUrlToSave;
 
     try {
-      // Update the document with all form data and set status to pending
+      // 1. If a new image was picked, upload it.
+      if (_imageFile != null) {
+        imageUrlToSave = await _uploadImage(_imageFile!);
+        if (imageUrlToSave == null) {
+          throw Exception("Image upload failed. Please try again.");
+        }
+      } else {
+        // Otherwise, keep the existing image URL.
+        imageUrlToSave = _networkImageUrl;
+      }
+
+      // 2. Update the document in Firestore.
       await FirebaseFirestore.instance
           .collection('vendors')
           .doc(user!.uid)
@@ -99,7 +154,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
             'price': _priceController.text.trim(),
             'location': _locationController.text.trim(),
             'category': _selectedCategory,
-            'status': 'pending_approval', // This submits the profile for review
+            'image': imageUrlToSave ?? '', // Save the new or existing URL
+            'status': 'pending_approval',
           });
 
       if (!mounted) return;
@@ -111,9 +167,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
       );
       Navigator.pop(context);
     } catch (e) {
-      setState(
-        () => _errorMessage = 'Failed to save changes. Please try again.',
-      );
+      setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -141,6 +195,53 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // --- IMAGE PICKER UI ---
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage: _imageFile != null
+                                ? FileImage(_imageFile!)
+                                : (_networkImageUrl != null &&
+                                              _networkImageUrl!.isNotEmpty
+                                          ? NetworkImage(_networkImageUrl!)
+                                          : null)
+                                      as ImageProvider?,
+                            child:
+                                (_imageFile == null &&
+                                    (_networkImageUrl == null ||
+                                        _networkImageUrl!.isEmpty))
+                                ? Icon(
+                                    Icons.storefront,
+                                    size: 60,
+                                    color: Colors.grey.shade400,
+                                  )
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: _pickImage,
+                              child: const CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.deepPurple,
+                                child: Icon(
+                                  Icons.edit,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // --- FORM FIELDS ---
                     TextFormField(
                       controller: _nameController,
                       decoration: const InputDecoration(
@@ -152,7 +253,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                           : null,
                     ),
                     const SizedBox(height: 20),
-                    // --- CATEGORY DROPDOWN ---
                     DropdownButtonFormField<String>(
                       value: _selectedCategory,
                       hint: const Text('Select Service Category'),
@@ -166,11 +266,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                           child: Text(category),
                         );
                       }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedCategory = newValue;
-                        });
-                      },
+                      onChanged: (newValue) =>
+                          setState(() => _selectedCategory = newValue),
                       validator: (value) =>
                           value == null ? 'Please select a category' : null,
                     ),
