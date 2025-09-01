@@ -23,28 +23,7 @@ class UserDashboard extends StatelessWidget {
         .snapshots();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Dashboard'),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFF472B6), Color(0xFF60A5FA)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthService().signOut();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-            },
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF8F9FA),
       body: StreamBuilder<DocumentSnapshot>(
         stream: userDocStream,
         builder: (context, snapshot) {
@@ -56,42 +35,43 @@ class UserDashboard extends StatelessWidget {
           }
 
           final userData = snapshot.data!.data() as Map<String, dynamic>;
-          final List<dynamic> shortlistedVendorIds = userData['shortlistedVendors'] ?? [];
+          final List<dynamic> shortlistedVendorIds =
+              userData['shortlistedVendors'] ?? [];
 
-          return ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: [
-              // --- Profile Details Card ---
-              _buildProfileCard(context, userData),
-              const SizedBox(height: 24),
+          return CustomScrollView(
+            slivers: [
+              // --- Profile Header ---
+              _buildProfileHeader(context, userData),
 
-              // --- History Section ---
-              const Text(
-                'My History',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              // --- Main Content List ---
+              SliverList(
+                delegate: SliverChildListDelegate([
+                  const SizedBox(height: 20),
+                  _buildSectionHeader('My Shortlisted Vendors'),
+                  const SizedBox(height: 10),
+                  shortlistedVendorIds.isEmpty
+                      ? _buildEmptyShortlistCard()
+                      : _buildShortlistedVendorsList(shortlistedVendorIds),
+                  const SizedBox(height: 20),
+                  _buildSectionHeader('Account'),
+                  const SizedBox(height: 10),
+                  _buildMenuItem(
+                    context: context,
+                    icon: Icons.logout,
+                    title: 'Log Out',
+                    color: Colors.red.shade400,
+                    onTap: () async {
+                      await AuthService().signOut();
+                      if (!context.mounted) return;
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/',
+                        (route) => false,
+                      );
+                    },
+                  ),
+                ]),
               ),
-              const SizedBox(height: 12),
-              _buildUserHistoryList(userData['uid'] ?? currentUser.uid),
-              const SizedBox(height: 24),
-
-              // --- Shortlisted Vendors Section ---
-              const Text(
-                'My Shortlisted Vendors',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              shortlistedVendorIds.isEmpty
-                  ? const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                          'You haven\'t shortlisted any vendors yet. Tap the ❤️ on a vendor\'s page to save them here!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                    )
-                  : _buildShortlistedVendorsList(shortlistedVendorIds),
             ],
           );
         },
@@ -99,160 +79,200 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // --- Profile Card ---
-  Widget _buildProfileCard(BuildContext context, Map<String, dynamic> userData) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'My Profile',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Color(0xFF60A5FA)),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EditUserProfilePage(userData: userData),
-                    ),
-                  ),
-                ),
-              ],
+  // --- Helper Widgets ---
+
+  Widget _buildProfileHeader(
+    BuildContext context,
+    Map<String, dynamic> userData,
+  ) {
+    final String name = userData['name'] ?? 'User';
+    final String email = userData['email'] ?? 'No email';
+    return SliverAppBar(
+      expandedHeight: 220.0,
+      pinned: true,
+      backgroundColor: const Color(0xFFF472B6), // Pinkish part of the gradient
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFF472B6), Color(0xFF60A5FA)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const Divider(),
-            const SizedBox(height: 8),
-            _buildDetailRow(Icons.person_outline, 'Name', userData['name'] ?? 'Not set'),
-            _buildDetailRow(Icons.email_outlined, 'Email', userData['email'] ?? 'Not set'),
-            _buildDetailRow(Icons.location_city_outlined, 'Location', userData['location'] ?? 'Not set'),
-          ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 16.0,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            color: Color(0xFF60A5FA),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            email,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      // FIX: Added a prominent, visible Edit button
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12.0),
+          child: IconButton(
+            icon: const Icon(Icons.edit, color: Colors.white),
+            tooltip: 'Edit Profile',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditUserProfilePage(userData: userData),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          color: Colors.grey.shade600,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+          letterSpacing: 1.1,
         ),
       ),
     );
   }
 
-  // --- Single Detail Row ---
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.grey.shade600, size: 20),
-          const SizedBox(width: 16),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-          Expanded(child: Text(value, style: TextStyle(color: Colors.grey.shade800, fontSize: 16))),
-        ],
+  Widget _buildEmptyShortlistCard() {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: const Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Text(
+          'Tap the ❤️ on a vendor\'s page to save them here!',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey),
+        ),
       ),
     );
   }
 
-  // --- User History List ---
-  Widget _buildUserHistoryList(String userId) {
-    final historyStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('history')
-        .orderBy('timestamp', descending: true)
-        .snapshots();
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: historyStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text(
-                'You have no history yet.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        }
-
-        final historyDocs = snapshot.data!.docs;
-
-        return Column(
-          children: historyDocs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final vendorName = data['vendorName'] ?? 'Vendor';
-            final vendorCategory = data['vendorCategory'] ?? '';
-            final timestamp = data['timestamp'] != null
-                ? (data['timestamp'] as Timestamp).toDate()
-                : null;
-
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                leading: const Icon(Icons.history, color: Colors.blue),
-                title: Text(vendorName),
-                subtitle: Text(vendorCategory +
-                    (timestamp != null ? ' • ${timestamp.toLocal()}' : '')),
-                onTap: () {
-                  if (data['vendorId'] != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => VendorDetailsPage(
-                          vendorId: data['vendorId'],
-                          vendorData: data,
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
-  // --- Shortlisted Vendors List ---
   Widget _buildShortlistedVendorsList(List<dynamic> vendorIds) {
-    return Column(
-      children: vendorIds.map((vendorId) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: vendorIds.length,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+      ), // Adjust horizontal padding
+      itemBuilder: (context, index) {
+        final vendorId = vendorIds[index];
         return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance.collection('vendors').doc(vendorId).get(),
+          future: FirebaseFirestore.instance
+              .collection('vendors')
+              .doc(vendorId)
+              .get(),
           builder: (context, vendorSnapshot) {
             if (!vendorSnapshot.hasData || !vendorSnapshot.data!.exists) {
               return const SizedBox.shrink();
             }
-            final vendorData = vendorSnapshot.data!.data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: NetworkImage(
-                    vendorData['image'] ?? 'https://via.placeholder.com/150',
-                  ),
-                ),
-                title: Text(vendorData['name'] ?? 'Vendor'),
-                subtitle: Text(vendorData['category'] ?? 'Category'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => VendorDetailsPage(vendorId: vendorId, vendorData: vendorData),
+            final vendorData =
+                vendorSnapshot.data!.data() as Map<String, dynamic>;
+            return _buildMenuItem(
+              context: context,
+              icon: Icons.storefront,
+              title: vendorData['name'] ?? 'Vendor',
+              subtitle: vendorData['category'] ?? 'Category',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VendorDetailsPage(
+                    vendorId: vendorId,
+                    vendorData: vendorData,
                   ),
                 ),
               ),
             );
           },
         );
-      }).toList(),
+      },
+    );
+  }
+
+  Widget _buildMenuItem({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    VoidCallback? onTap,
+    Color color = const Color(0xFFF472B6),
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      shadowColor: Colors.black.withAlpha(13),
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withAlpha(26),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: subtitle != null ? Text(subtitle) : null,
+        trailing: onTap != null
+            ? const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey)
+            : null,
+      ),
     );
   }
 }

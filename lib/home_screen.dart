@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // This line will work after the fix
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'vendor_makeup_page.dart';
@@ -39,8 +39,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text("Kerala Wedding Planner"),
+        title: const Text("Wedding Planner"),
         backgroundColor: Colors.white,
         elevation: 1,
         actions: [
@@ -76,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildSearchAndFilters(),
             _buildCategorySection(),
             _buildVendorSection(),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -168,17 +170,17 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: Text(
             'Categories',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
         SizedBox(
-          height: 120,
+          height: 110,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: categories.length,
             itemBuilder: (context, index) {
               final category = categories[index];
@@ -193,56 +195,70 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Vendor Grid Section
   Widget _buildVendorSection() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('vendors')
-            .where('status', isEqualTo: 'approved')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No vendors available'));
-          }
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Popular Vendors',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('vendors')
+                .where('status', isEqualTo: 'approved')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text('No vendors available'));
+              }
 
-          final vendors = snapshot.data!.docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final name = (data['name'] ?? '').toString().toLowerCase();
-            final category = (data['category'] ?? '').toString().toLowerCase();
-            final price = double.tryParse(data['price'].toString()) ?? 0;
-            final rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
+              final vendors = snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final name = (data['name'] ?? '').toString().toLowerCase();
+                final category = (data['category'] ?? '')
+                    .toString()
+                    .toLowerCase();
+                final price = double.tryParse(data['price'].toString()) ?? 0;
+                final rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
 
-            return (name.contains(searchQuery) ||
-                    category.contains(searchQuery)) &&
-                (price == 0 || price <= maxPrice) &&
-                rating >= minRating;
-          }).toList();
+                return (name.contains(searchQuery) ||
+                        category.contains(searchQuery)) &&
+                    (price == 0 || price <= maxPrice) &&
+                    rating >= minRating;
+              }).toList();
 
-          if (vendors.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(20.0),
-              child: Center(child: Text('No vendors match your filters')),
-            );
-          }
+              if (vendors.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Center(child: Text('No vendors match your filters')),
+                );
+              }
 
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 4,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.8,
-            ),
-            itemCount: vendors.length,
-            itemBuilder: (context, index) {
-              final vendor = vendors[index];
-              return _vendorCard(vendor);
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: MediaQuery.of(context).size.width < 600
+                      ? 2
+                      : 4,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.8,
+                ),
+                itemCount: vendors.length,
+                itemBuilder: (context, index) {
+                  final vendor = vendors[index];
+                  return _vendorCard(vendor);
+                },
+              );
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -284,8 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              // FIX: Replaced deprecated withOpacity
-              color: Colors.black.withAlpha(13), // 5% opacity
+              color: Colors.black.withAlpha(13),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -324,8 +339,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Card(
         elevation: 2,
-        // FIX: Replaced deprecated withOpacity
-        shadowColor: Colors.black.withAlpha(26), // 10% opacity
+        shadowColor: Colors.black.withAlpha(26),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
