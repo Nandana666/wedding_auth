@@ -3,18 +3,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'vendor_details_page.dart';
 
 class VendorVenuesPage extends StatelessWidget {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   VendorVenuesPage({super.key});
+
+  final CollectionReference vendors = FirebaseFirestore.instance.collection(
+    'vendors',
+  );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Venue Vendors")),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('vendors')
-            .where('category', isEqualTo: 'Venues')
+        stream: vendors
+            // Important: Firestore queries are case-sensitive. Use a consistent case.
+            .where('category', isEqualTo: 'venues')
             .where('status', isEqualTo: 'approved')
             .snapshots(),
         builder: (context, snapshot) {
@@ -25,27 +27,33 @@ class VendorVenuesPage extends StatelessWidget {
             return const Center(child: Text('No venue vendors found'));
           }
 
-          final vendors = snapshot.data!.docs;
+          final vendorDocs = snapshot.data!.docs;
 
           return GridView.builder(
             padding: const EdgeInsets.all(12),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount:
-                  MediaQuery.of(context).size.width < 600 ? 2 : 3,
+              crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 3,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               childAspectRatio: 0.75,
             ),
-            itemCount: vendors.length,
+            itemCount: vendorDocs.length,
             itemBuilder: (context, index) {
-              final vendor = vendors[index].data() as Map<String, dynamic>;
+              final vendor = vendorDocs[index];
+              // FIX: Get both the vendor's data and its unique ID.
+              final vendorData = vendor.data() as Map<String, dynamic>;
+              final vendorId = vendor.id;
+
               return GestureDetector(
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          VendorDetailsPage(vendorData: vendor),
+                      // FIX: Pass both required parameters to VendorDetailsPage.
+                      builder: (_) => VendorDetailsPage(
+                        vendorId: vendorId,
+                        vendorData: vendorData,
+                      ),
                     ),
                   );
                 },
@@ -58,10 +66,11 @@ class VendorVenuesPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ClipRRect(
-                        borderRadius:
-                            const BorderRadius.vertical(top: Radius.circular(12)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
                         child: Image.network(
-                          vendor['image'] ??
+                          vendorData['image'] ??
                               'https://via.placeholder.com/150',
                           height: 120,
                           width: double.infinity,
@@ -71,17 +80,36 @@ class VendorVenuesPage extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: Text(
-                          vendor['name'] ?? 'Vendor Name',
+                          vendorData['name'] ?? 'Vendor Name',
                           style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text(
-                          vendor['location'] ?? 'Location',
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.grey),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_outlined,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                vendorData['location'] ?? 'Location',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

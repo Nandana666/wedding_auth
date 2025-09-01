@@ -24,7 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String searchQuery = '';
-  double minPrice = 0;
   double maxPrice = 100000;
   double minRating = 0;
 
@@ -40,12 +39,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text("Kerala Wedding"),
+        title: const Text("Kerala Wedding Planner"),
+        backgroundColor: Colors.white,
+        elevation: 1,
         actions: [
           IconButton(
-            icon: const Icon(Icons.person),
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'My Profile',
             onPressed: () {
               Navigator.push(
                 context,
@@ -55,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: 'Log Out',
             onPressed: () async {
               await _auth.signOut();
               if (context.mounted) {
@@ -67,32 +69,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Background Image
-          SizedBox.expand(
-            child: Image.asset(
-              'assets/admin_bg.jpg', // Replace with your image path
-              fit: BoxFit.cover,
-            ),
-          ),
-          // FIX: Replaced deprecated withOpacity
-          // Optional: Add a semi-transparent overlay for readability
-          Container(
-            color: const Color.fromARGB(25, 0, 0, 0), // 10% opacity black
-          ),
-          // Main Content
-          SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSearchAndFilters(),
-                _buildCategorySection(),
-                _buildVendorSection(),
-              ],
-            ),
-          ),
-        ],
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSearchAndFilters(),
+            _buildCategorySection(),
+            _buildVendorSection(),
+          ],
+        ),
       ),
     );
   }
@@ -100,15 +85,21 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Search + Filters Section
   Widget _buildSearchAndFilters() {
     return Padding(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(16.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'Find Your Perfect Vendor',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
           TextField(
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.search),
-              hintText: 'Search vendors...',
+              hintText: 'Search by name or category...',
               filled: true,
-              fillColor: Colors.white,
+              fillColor: Colors.grey.shade200,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -120,30 +111,41 @@ class _HomeScreenState extends State<HomeScreen> {
               });
             },
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: Slider(
-                  value: maxPrice,
-                  min: 0,
-                  max: 100000,
-                  divisions: 20,
-                  label: "Max ₹$maxPrice",
-                  onChanged: (value) {
-                    setState(() {
-                      maxPrice = value;
-                    });
-                  },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Max Price: ₹${maxPrice.toInt()}",
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                    Slider(
+                      value: maxPrice,
+                      min: 0,
+                      max: 100000,
+                      divisions: 20,
+                      label: "₹${maxPrice.toInt()}",
+                      onChanged: (value) {
+                        setState(() {
+                          maxPrice = value;
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 16),
               DropdownButton<double>(
                 value: minRating,
+                underline: const SizedBox(),
                 items: [0, 1, 2, 3, 4, 5]
                     .map(
                       (e) => DropdownMenuItem<double>(
                         value: e.toDouble(),
-                        child: Text("$e+⭐"),
+                        child: Text("$e+ ⭐"),
                       ),
                     )
                     .toList(),
@@ -162,71 +164,86 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Categories Section
   Widget _buildCategorySection() {
-    return SizedBox(
-      height: 120,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.all(12),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          return _categoryCard(category['title'], category['icon']);
-        },
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            'Categories',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+        ),
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(16),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              return _categoryCard(category['title'], category['icon']);
+            },
+          ),
+        ),
+      ],
     );
   }
 
   /// Vendor Grid Section
   Widget _buildVendorSection() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('vendors')
-          .where('status', isEqualTo: 'approved')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No vendors available'));
-        }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: _firestore
+            .collection('vendors')
+            .where('status', isEqualTo: 'approved')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('No vendors available'));
+          }
 
-        final vendors = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final name = (data['name'] ?? '').toString().toLowerCase();
-          final price = double.tryParse(data['price'].toString()) ?? 0;
-          final rating = double.tryParse(data['rating'].toString()) ?? 0;
+          final vendors = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = (data['name'] ?? '').toString().toLowerCase();
+            final category = (data['category'] ?? '').toString().toLowerCase();
+            final price = double.tryParse(data['price'].toString()) ?? 0;
+            final rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
 
-          return name.contains(searchQuery) &&
-              price >= minPrice &&
-              price <= maxPrice &&
-              rating >= minRating;
-        }).toList();
+            return (name.contains(searchQuery) ||
+                    category.contains(searchQuery)) &&
+                (price == 0 || price <= maxPrice) &&
+                rating >= minRating;
+          }).toList();
 
-        if (vendors.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Center(child: Text('No vendors match your filters')),
+          if (vendors.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: Text('No vendors match your filters')),
+            );
+          }
+
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 4,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.8,
+            ),
+            itemCount: vendors.length,
+            itemBuilder: (context, index) {
+              final vendor = vendors[index];
+              return _vendorCard(vendor);
+            },
           );
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(12),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
-          ),
-          itemCount: vendors.length,
-          itemBuilder: (context, index) {
-            final vendor = vendors[index];
-            return _vendorCard(vendor);
-          },
-        );
-      },
+        },
+      ),
     );
   }
 
@@ -260,16 +277,17 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(context, MaterialPageRoute(builder: (_) => page));
       },
       child: Container(
-        width: 90,
+        width: 100,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(2, 2),
+              // FIX: Replaced deprecated withOpacity
+              color: Colors.black.withAlpha(13), // 5% opacity
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -277,8 +295,12 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: Colors.pink, size: 30),
-            const SizedBox(height: 6),
-            Text(title, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ],
         ),
       ),
@@ -288,17 +310,22 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Vendor Card
   Widget _vendorCard(DocumentSnapshot vendor) {
     final data = vendor.data() as Map<String, dynamic>;
+    final vendorId = vendor.id;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => VendorDetailsPage(vendorData: data),
+            builder: (_) =>
+                VendorDetailsPage(vendorId: vendorId, vendorData: data),
           ),
         );
       },
       child: Card(
-        elevation: 3,
+        elevation: 2,
+        // FIX: Replaced deprecated withOpacity
+        shadowColor: Colors.black.withAlpha(26), // 10% opacity
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,17 +349,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Row(
                 children: [
-                  const Icon(Icons.star, color: Colors.orange, size: 16),
+                  const Icon(Icons.star, color: Colors.amber, size: 16),
                   const SizedBox(width: 4),
                   Text(
-                    "${data['rating'] ?? '0.0'} ⭐",
-                    style: const TextStyle(fontSize: 14),
+                    (data['rating'] as num?)?.toStringAsFixed(1) ?? 'N/A',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    data['location'] ?? '',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ],
               ),
