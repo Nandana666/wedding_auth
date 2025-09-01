@@ -1,6 +1,9 @@
+// lib/vendor_details_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'chat_page.dart';
 
 class VendorDetailsPage extends StatefulWidget {
   final String vendorId;
@@ -48,8 +51,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         }
       }
     } catch (e) {
-      // FIX: Removed the print statement to resolve the linter warning.
-      // The catch block still safely handles the error without crashing.
+      // Error is handled silently
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -90,6 +92,61 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     setState(() {
       isShortlisted = !isShortlisted;
     });
+  }
+
+  Future<void> _startOrGoToChat() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to message vendors.')),
+      );
+      return;
+    }
+
+    final vendorId = widget.vendorId;
+    final currentUserId = currentUser.uid;
+
+    // Create a consistent chat ID by sorting UIDs
+    List<String> ids = [currentUserId, vendorId];
+    ids.sort();
+    String chatId = ids.join('_');
+
+    final chatDoc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .get();
+
+    if (!chatDoc.exists) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      final userName =
+          (userDoc.data() as Map<String, dynamic>)['name'] ?? 'New User';
+
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+        'participants': [currentUserId, vendorId],
+        'participantNames': {
+          currentUserId: userName,
+          vendorId: widget.vendorData['name'] ?? 'Vendor',
+        },
+        'lastMessage': '',
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          chatId: chatId,
+          recipientId: vendorId,
+          recipientName: widget.vendorData['name'] ?? 'Vendor',
+        ),
+      ),
+    );
   }
 
   @override
@@ -142,7 +199,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                 ),
             ],
           ),
-
           SliverList(
             delegate: SliverChildListDelegate([
               Padding(
@@ -245,14 +301,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Messaging feature coming soon!'),
-                              backgroundColor: Colors.blueAccent,
-                            ),
-                          );
-                        },
+                        onPressed: _startOrGoToChat,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: const Color(0xFF2575FC),

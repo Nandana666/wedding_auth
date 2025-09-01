@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'edit_user_profile_page.dart';
 import 'vendor_details_page.dart';
 import 'auth_service.dart';
+import 'chat_list_page.dart';
 
 class UserDashboard extends StatelessWidget {
   const UserDashboard({super.key});
@@ -40,7 +41,7 @@ class UserDashboard extends StatelessWidget {
 
           return CustomScrollView(
             slivers: [
-              // --- Profile Header ---
+              // --- Profile Header with Edit Icon ---
               _buildProfileHeader(context, userData),
 
               // --- Main Content List ---
@@ -52,9 +53,26 @@ class UserDashboard extends StatelessWidget {
                   shortlistedVendorIds.isEmpty
                       ? _buildEmptyShortlistCard()
                       : _buildShortlistedVendorsList(shortlistedVendorIds),
+
                   const SizedBox(height: 20),
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
+
+                  // Inbox Button
+                  _buildMenuItem(
+                    context: context,
+                    icon: Icons.inbox_outlined,
+                    title: 'My Inbox',
+                    color: Colors.blue.shade400,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ChatListPage()),
+                      );
+                    },
+                  ),
+
+                  // Logout Button
                   _buildMenuItem(
                     context: context,
                     icon: Icons.logout,
@@ -79,7 +97,7 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // --- Helper Widgets ---
+  // --- Helper Widgets for the design ---
 
   Widget _buildProfileHeader(
     BuildContext context,
@@ -153,7 +171,6 @@ class UserDashboard extends StatelessWidget {
           ),
         ),
       ),
-      // FIX: Added a prominent, visible Edit button
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 12.0),
@@ -207,9 +224,7 @@ class UserDashboard extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: vendorIds.length,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-      ), // Adjust horizontal padding
+      padding: EdgeInsets.zero,
       itemBuilder: (context, index) {
         final vendorId = vendorIds[index];
         return FutureBuilder<DocumentSnapshot>(
