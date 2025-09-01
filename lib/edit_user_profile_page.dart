@@ -15,7 +15,7 @@ class EditUserProfilePage extends StatefulWidget {
 class _EditUserProfilePageState extends State<EditUserProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
-  late TextEditingController _dateController;
+  late TextEditingController _emailController;
   late TextEditingController _locationController;
   bool _isSaving = false;
 
@@ -23,34 +23,16 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.userData['name']);
-    _dateController = TextEditingController(
-      text: widget.userData['weddingDate'],
-    );
-    _locationController = TextEditingController(
-      text: widget.userData['weddingLocation'],
-    );
+    _emailController = TextEditingController(text: widget.userData['email']);
+    _locationController = TextEditingController(text: widget.userData['location']);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _dateController.dispose();
+    _emailController.dispose();
     _locationController.dispose();
     super.dispose();
-  }
-
-  Future<void> _selectDate() async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      setState(() {
-        _dateController.text = "${picked.day}/${picked.month}/${picked.year}";
-      });
-    }
   }
 
   Future<void> _saveChanges() async {
@@ -58,14 +40,27 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
       setState(() => _isSaving = true);
       final user = FirebaseAuth.instance.currentUser!;
       try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-              'name': _nameController.text.trim(),
-              'weddingDate': _dateController.text.trim(),
-              'weddingLocation': _locationController.text.trim(),
-            });
+        // Update Firestore
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'location': _locationController.text.trim(),
+        });
+
+        // Update Auth email using verifyBeforeUpdateEmail if changed
+        if (_emailController.text.trim() != user.email) {
+          await user.verifyBeforeUpdateEmail(_emailController.text.trim());
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Verification email sent to update your email. Please verify to complete the change.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+
         if (!mounted) return;
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -77,8 +72,8 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to save details.'),
+            SnackBar(
+              content: Text('Failed to save details: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -100,6 +95,7 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Name
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -109,27 +105,36 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
                 validator: (v) => v!.isEmpty ? 'Please enter your name' : null,
               ),
               const SizedBox(height: 20),
+
+              // Email
               TextFormField(
-                controller: _dateController,
-                decoration: InputDecoration(
-                  labelText: 'Wedding Date',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.calendar_month),
-                    onPressed: _selectDate,
-                  ),
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
                 ),
-                readOnly: true,
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Please enter your email';
+                  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
+
+              // Location
               TextFormField(
                 controller: _locationController,
                 decoration: const InputDecoration(
-                  labelText: 'Wedding Location (e.g., Kochi)',
+                  labelText: 'Location (e.g., Kochi)',
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 30),
+
+              // Save Button
               ElevatedButton(
                 onPressed: _isSaving ? null : _saveChanges,
                 style: ElevatedButton.styleFrom(
