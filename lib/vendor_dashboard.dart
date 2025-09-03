@@ -52,23 +52,20 @@ class VendorDashboard extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(
-              child: Text("Could not load your profile data."),
-            );
+            return _buildIncompleteProfileView(context);
           }
 
           final vendorData = snapshot.data!.data() as Map<String, dynamic>;
           final String status = vendorData['status'] ?? 'incomplete';
 
-          // --- CONDITIONAL UI BASED ON VENDOR STATUS ---
           switch (status) {
             case 'incomplete':
               return _buildIncompleteProfileView(context);
             case 'pending_approval':
-              return _buildPendingApprovalView(context);
+              return _buildDashboardView(context, vendorData, isPending: true);
             case 'approved':
-              return _buildApprovedDashboardView(context, vendorData);
-            default: // Covers 'declined' or any other unexpected status
+              return _buildDashboardView(context, vendorData, isPending: false);
+            default:
               return _buildDeclinedView(context);
           }
         },
@@ -84,7 +81,7 @@ class VendorDashboard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.edit_note, size: 80, color: Colors.blueAccent),
+          const Icon(Icons.edit_note, size: 80, color: Color(0xFF2575FC)),
           const SizedBox(height: 20),
           const Text(
             'Complete Your Profile',
@@ -120,72 +117,138 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // --- WIDGET FOR 'pending_approval' STATUS ---
-  Widget _buildPendingApprovalView(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(24.0),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.hourglass_top_rounded, size: 80, color: Colors.amber),
-            SizedBox(height: 20),
-            Text(
-              'Your Profile is Under Review',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 12),
-            Text(
-              'An admin will review your details shortly. Thank you for your patience!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // --- SHARED WIDGET FOR 'approved' & 'pending_approval' STATUSES ---
+  Widget _buildDashboardView(
+      BuildContext context, Map<String, dynamic> vendorData,
+      {required bool isPending}) {
+    final String companyLogo = vendorData['company_logo'] ?? '';
+    final String companyName = vendorData['name'] ?? 'Vendor';
+    final String location = vendorData['location'] ?? 'Unknown Location';
+    final List<dynamic> services = vendorData['services'] ?? [];
 
-  // --- WIDGET FOR 'approved' STATUS ---
-  Widget _buildApprovedDashboardView(
-    BuildContext context,
-    Map<String, dynamic> vendorData,
-  ) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        Text(
-          'Welcome, ${vendorData['name'] ?? 'Vendor'}!',
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage your profile and respond to inquiries.',
-          style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-        ),
-        const Divider(height: 40),
-        _buildMenuItem(
-          context: context,
-          icon: Icons.inbox_outlined,
-          title: 'My Inbox',
-          color: Colors.blue.shade400,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ChatListPage()),
+        // --- VENDOR PROFILE HEADER ---
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 2,
+                blurRadius: 5,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: companyLogo.isNotEmpty
+                    ? NetworkImage(companyLogo) as ImageProvider
+                    : null,
+                child: companyLogo.isEmpty
+                    ? const Icon(Icons.business, size: 50, color: Colors.grey)
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                companyName,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.location_on, size: 18, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    location,
+                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (isPending)
+                const Column(
+                  children: [
+                    Icon(Icons.hourglass_top_rounded, size: 40, color: Colors.amber),
+                    SizedBox(height: 8),
+                    Text(
+                      'Profile Under Review',
+                      style: TextStyle(fontSize: 16, color: Colors.amber),
+                      textAlign: TextAlign.center,
+                    ),
+                    Text(
+                      'An admin will check your details shortly.',
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              if (!isPending)
+                const Column(
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 40, color: Colors.green),
+                    SizedBox(height: 8),
+                    Text(
+                      'Profile Approved',
+                      style: TextStyle(fontSize: 16, color: Colors.green),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 24),
+
+        // --- MANAGE PROFILE & CHAT BUTTONS ---
         _buildMenuItem(
           context: context,
           icon: Icons.edit_outlined,
           title: 'Edit My Profile',
-          color: Colors.green.shade400,
+          color: const Color(0xFF6A11CB),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const EditVendorProfilePage()),
           ),
         ),
+        _buildMenuItem(
+          context: context,
+          icon: Icons.chat_bubble_outline,
+          title: 'My Inbox',
+          color: const Color(0xFF2575FC),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatListPage()),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+        const Text(
+          'My Services',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+
+        // --- LIST OF SERVICES ---
+        if (services.isEmpty)
+          const Center(
+            child: Text(
+              'No services added yet.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+        ...services.map((service) {
+          return _buildServiceCard(service);
+        }).toList(),
       ],
     );
   }
@@ -217,7 +280,6 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // Helper for consistent menu item styling
   Widget _buildMenuItem({
     required BuildContext context,
     required IconData icon,
@@ -244,6 +306,62 @@ class VendorDashboard extends StatelessWidget {
           size: 16,
           color: Colors.grey,
         ),
+      ),
+    );
+  }
+
+  Widget _buildServiceCard(Map<String, dynamic> service) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (service['image_url'] != null && service['image_url'].isNotEmpty)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.network(
+                service['image_url'],
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: Colors.grey.shade300,
+                    child: const Center(
+                      child: Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                    ),
+                  );
+                },
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  service['title'] ?? 'No Title',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '₹${service['price'] ?? 'N/A'}',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6A11CB)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  service['description'] ?? 'No description provided.',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
