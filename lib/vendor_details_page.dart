@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'chat_page.dart'; // Make sure you have this file for the chat functionality
+import 'chat_page.dart'; // Make sure this path is correct
 
 class VendorDetailsPage extends StatefulWidget {
   final String vendorId;
@@ -53,7 +53,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         }
       }
     } catch (e) {
-      // Handle error silently
+      // Error is handled silently for a better user experience
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -78,9 +78,9 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     setState(() => isShortlisted = !isShortlisted);
 
     if (isShortlisted) {
-      userRef.update({
+      userRef.set({
         'shortlistedVendors': FieldValue.arrayUnion([widget.vendorId]),
-      });
+      }, SetOptions(merge: true));
       scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('Added to your shortlist!')),
       );
@@ -110,42 +110,49 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     ids.sort();
     String chatId = ids.join('_');
 
-    final chatDoc = await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatId)
-        .get();
-
-    if (!chatDoc.exists) {
+    try {
+      // First, get the current user's name. This read operation is now allowed by the corrected security rules.
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUserId)
           .get();
-      final userName =
-          (userDoc.data() as Map<String, dynamic>)['name'] ?? 'New User';
+      final userName = userDoc.data()?['name'] ?? 'New User';
 
-      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
-        'participants': [currentUserId, vendorId],
-        'participantNames': {
-          currentUserId: userName,
-          vendorId: widget.vendorData['name'] ?? 'Vendor',
+      // THE FIX: Use a single .set() with merge: true instead of .get() and then .set().
+      // This is a single WRITE operation that correctly triggers the 'create' security rule
+      // without needing a 'read' permission on a non-existent document.
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).set(
+        {
+          'participants': [currentUserId, vendorId],
+          'participantNames': {
+            currentUserId: userName,
+            vendorId: widget.vendorData['name'] ?? 'Vendor',
+          },
+          'lastMessageTimestamp': FieldValue.serverTimestamp(),
         },
-        'lastMessage': '',
-        'lastMessageTimestamp': FieldValue.serverTimestamp(),
-      });
-    }
+        SetOptions(merge: true),
+      ); // `merge: true` makes this an "upsert" operation.
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatPage(
-          chatId: chatId,
-          recipientId: vendorId,
-          recipientName: widget.vendorData['name'] ?? 'Vendor',
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            chatId: chatId,
+            recipientId: vendorId,
+            recipientName: widget.vendorData['name'] ?? 'Vendor',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not start chat. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -181,8 +188,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                   ? Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      // <<< FIX 1: Replaced withOpacity with withAlpha >>>
-                      color: Colors.black.withAlpha(102), // 0.4 opacity
+                      color: Colors.black.withAlpha(102),
                       colorBlendMode: BlendMode.darken,
                       errorBuilder: (context, error, stackTrace) =>
                           Container(color: Colors.grey),
@@ -237,10 +243,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            // <<< FIX 2: Replaced withOpacity with withAlpha >>>
-                            color: const Color(
-                              0xFF6A11CB,
-                            ).withAlpha(26), // 0.1 opacity
+                            color: const Color(0xFF6A11CB).withAlpha(26),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -379,13 +382,11 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
 
   Widget _buildServiceCard(dynamic service) {
     if (service is! Map<String, dynamic>) return const SizedBox.shrink();
-
     final String imageUrl = service['image_url'] ?? '';
     final String title = service['title'] ?? 'No Title';
     final String description =
         service['description'] ?? 'No description available.';
     final String price = service['price']?.toString() ?? 'N/A';
-
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 16),
