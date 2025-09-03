@@ -31,9 +31,9 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
           .collection('vendors')
           .doc(widget.vendorId)
           .update({
-            'status': 'approved',
-            'approvedAt': FieldValue.serverTimestamp(),
-          });
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,7 +89,8 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String? imageUrl = widget.vendorData['image'];
+    final String? companyLogoUrl = widget.vendorData['company_logo'];
+    final List<dynamic> services = widget.vendorData['services'] ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +100,9 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- VENDOR HEADER CARD ---
             Card(
               elevation: 6,
               shape: RoundedRectangleBorder(
@@ -112,10 +115,10 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: Colors.deepPurpleAccent,
-                      backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
-                          ? NetworkImage(imageUrl)
+                      backgroundImage: (companyLogoUrl != null && companyLogoUrl.isNotEmpty)
+                          ? NetworkImage(companyLogoUrl)
                           : null,
-                      child: (imageUrl == null || imageUrl.isEmpty)
+                      child: (companyLogoUrl == null || companyLogoUrl.isEmpty)
                           ? Text(
                               widget.vendorData['name'] != null &&
                                       widget.vendorData['name'].isNotEmpty
@@ -142,8 +145,7 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            widget.vendorData['category'] ??
-                                "Category not specified",
+                            'Location: ${widget.vendorData['location'] ?? 'N/A'}',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[700],
@@ -157,65 +159,25 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: widget.vendorData.entries.map((entry) {
-                    if (entry.value == null ||
-                        entry.value.toString().isEmpty ||
-                        [
-                          'status',
-                          'role',
-                          'approvedAt',
-                          'rating',
-                          'image',
-                        ].contains(entry.key)) {
-                      return const SizedBox.shrink();
-                    }
 
-                    String displayValue;
-                    if (entry.key == 'createdAt' && entry.value is Timestamp) {
-                      final dateTime = (entry.value as Timestamp).toDate();
-                      displayValue = DateFormat(
-                        'dd MMM yyyy, hh:mm a',
-                      ).format(dateTime);
-                    } else {
-                      displayValue = entry.value.toString();
-                    }
+            // --- SERVICES HEADING ---
+            const Text(
+              'Submitted Services',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 120,
-                            child: Text(
-                              "${capitalize(entry.key)}:",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              displayValue,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+            // --- LIST OF SERVICES ---
+            if (services.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.0),
+                child: Center(
+                  child: Text('No services have been submitted for this vendor.'),
                 ),
               ),
-            ),
+            ...services.map((service) {
+              return _buildServiceCard(service);
+            }).toList(),
           ],
         ),
       ),
@@ -266,6 +228,59 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
     );
   }
 
-  String capitalize(String s) =>
-      s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '';
+  Widget _buildServiceCard(Map<String, dynamic> service) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (service['image_url'] != null && service['image_url'].isNotEmpty)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.network(
+                service['image_url'],
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: Colors.grey.shade300,
+                    child: const Center(
+                      child: Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                    ),
+                  );
+                },
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  service['title'] ?? 'No Title',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '₹${service['price'] ?? 'N/A'}',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.deepPurple),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  service['description'] ?? 'No description provided.',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
