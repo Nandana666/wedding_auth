@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class VendorMakeupPage extends StatelessWidget {
   VendorMakeupPage({super.key});
 
-  final CollectionReference vendors = FirebaseFirestore.instance.collection('vendors');
+  final CollectionReference vendors =
+      FirebaseFirestore.instance.collection('vendors');
 
   @override
   Widget build(BuildContext context) {
@@ -35,8 +36,19 @@ class VendorMakeupPage extends StatelessWidget {
               final vendor = docs[index];
               final vendorData = vendor.data() as Map<String, dynamic>;
 
-              final images = List<String>.from(vendorData['images'] ?? []);
-              final services = List<String>.from(vendorData['services'] ?? []);
+              // ✅ Safe conversions
+              final images = (vendorData['images'] as List?)
+                      ?.map((e) => e.toString())
+                      .toList() ??
+                  [];
+              final services = (vendorData['services'] as List?)
+                      ?.map((e) => e.toString())
+                      .toList() ??
+                  [];
+              final name = vendorData['name']?.toString() ?? 'Vendor Name';
+              final rating = vendorData['rating']?.toString() ?? 'N/A';
+              final priceRange = vendorData['priceRange']?.toString() ?? '';
+              final contact = vendorData['contact']?.toString() ?? '';
 
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 10),
@@ -55,7 +67,8 @@ class VendorMakeupPage extends StatelessWidget {
                           itemCount: images.length,
                           itemBuilder: (context, i) {
                             return ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16)),
                               child: Image.network(
                                 images[i],
                                 width: double.infinity,
@@ -74,10 +87,12 @@ class VendorMakeupPage extends StatelessWidget {
                         height: 200,
                         decoration: BoxDecoration(
                           color: Colors.grey[300],
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16)),
                         ),
                         child: const Center(
-                          child: Icon(Icons.image, size: 50, color: Colors.white),
+                          child: Icon(Icons.image,
+                              size: 50, color: Colors.white),
                         ),
                       ),
                     Padding(
@@ -90,15 +105,16 @@ class VendorMakeupPage extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                vendorData['name'] ?? 'Vendor Name',
+                                name,
                                 style: const TextStyle(
                                     fontSize: 20, fontWeight: FontWeight.bold),
                               ),
                               Row(
                                 children: [
-                                  const Icon(Icons.star, color: Colors.amber, size: 20),
+                                  const Icon(Icons.star,
+                                      color: Colors.amber, size: 20),
                                   Text(
-                                    '${vendorData['rating'] ?? 'N/A'}',
+                                    rating,
                                     style: const TextStyle(fontSize: 16),
                                   ),
                                 ],
@@ -114,20 +130,20 @@ class VendorMakeupPage extends StatelessWidget {
                             ),
                           const SizedBox(height: 6),
                           // Price
-                          if (vendorData['priceRange'] != null)
+                          if (priceRange.isNotEmpty)
                             Text(
-                              'Price: ${vendorData['priceRange']}',
+                              'Price: $priceRange',
                               style: const TextStyle(color: Colors.grey),
                             ),
                           const SizedBox(height: 6),
                           // Contact
-                          if (vendorData['contact'] != null)
+                          if (contact.isNotEmpty)
                             Row(
                               children: [
                                 const Icon(Icons.phone,
                                     color: Colors.pinkAccent, size: 18),
                                 const SizedBox(width: 6),
-                                Text(vendorData['contact']),
+                                Text(contact),
                               ],
                             ),
                           const SizedBox(height: 10),
@@ -138,8 +154,7 @@ class VendorMakeupPage extends StatelessWidget {
                               onPressed: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content:
-                                        Text('Booking ${vendorData['name']}...'),
+                                    content: Text('Booking $name...'),
                                   ),
                                 );
                               },
