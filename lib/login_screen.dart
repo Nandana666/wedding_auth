@@ -18,22 +18,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
 
   Future<String?> _getRole(String uid) async {
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (userDoc.exists) return 'user';
 
-    final adminDoc = await FirebaseFirestore.instance
-        .collection('Admin')
-        .doc(uid)
-        .get();
+    final adminDoc =
+        await FirebaseFirestore.instance.collection('Admin').doc(uid).get();
     if (adminDoc.exists) return 'admin';
 
-    final vendorDoc = await FirebaseFirestore.instance
-        .collection('vendors')
-        .doc(uid)
-        .get();
+    final vendorDoc =
+        await FirebaseFirestore.instance.collection('vendors').doc(uid).get();
     if (vendorDoc.exists) {
       final status = (vendorDoc.data() as Map<String, dynamic>)['status'];
       switch (status) {
@@ -95,12 +89,38 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _resetPassword() async {
+    if (_email.text.trim().isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your email to reset password.';
+      });
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _email.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset email sent. Check your inbox.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
+          // Top gradient background
           Positioned(
             top: 0,
             left: 0,
@@ -116,6 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+          // White rounded container
           Positioned(
             top: MediaQuery.of(context).size.height * 0.2,
             left: 0,
@@ -166,6 +187,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
                     _buildPasswordField(),
+                    const SizedBox(height: 10),
+                    _buildForgotPasswordLink(), // 🔹 Added here
                     const SizedBox(height: 20),
                     if (_errorMessage != null)
                       Padding(
@@ -241,6 +264,22 @@ class _LoginScreenState extends State<LoginScreen> {
               _isPasswordVisible = !_isPasswordVisible;
             });
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForgotPasswordLink() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: _resetPassword,
+        child: const Text(
+          'Forgot Password?',
+          style: TextStyle(
+            color: Color(0xFFC0A0FF),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
