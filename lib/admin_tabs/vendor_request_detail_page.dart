@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
 class VendorRequestDetailPage extends StatefulWidget {
   final String vendorId;
@@ -31,9 +30,9 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
           .collection('vendors')
           .doc(widget.vendorId)
           .update({
-        'status': 'approved',
-        'approvedAt': FieldValue.serverTimestamp(),
-      });
+            'status': 'approved',
+            'approvedAt': FieldValue.serverTimestamp(),
+          });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -115,7 +114,8 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: Colors.deepPurpleAccent,
-                      backgroundImage: (companyLogoUrl != null && companyLogoUrl.isNotEmpty)
+                      backgroundImage:
+                          (companyLogoUrl != null && companyLogoUrl.isNotEmpty)
                           ? NetworkImage(companyLogoUrl)
                           : null,
                       child: (companyLogoUrl == null || companyLogoUrl.isEmpty)
@@ -172,12 +172,14 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20.0),
                 child: Center(
-                  child: Text('No services have been submitted for this vendor.'),
+                  child: Text(
+                    'No services have been submitted for this vendor.',
+                  ),
                 ),
               ),
             ...services.map((service) {
               return _buildServiceCard(service);
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -238,7 +240,9 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
         children: [
           if (service['image_url'] != null && service['image_url'].isNotEmpty)
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               child: Image.network(
                 service['image_url'],
                 height: 200,
@@ -248,7 +252,11 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                     height: 200,
                     color: Colors.grey.shade300,
                     child: const Center(
-                      child: Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey,
+                        size: 50,
+                      ),
                     ),
                   );
                 },
@@ -261,15 +269,19 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
               children: [
                 Text(
                   service['title'] ?? 'No Title',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '₹${service['price'] ?? 'N/A'}',
                   style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.deepPurple),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.deepPurple,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(

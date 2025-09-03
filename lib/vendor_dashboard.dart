@@ -119,8 +119,10 @@ class VendorDashboard extends StatelessWidget {
 
   // --- SHARED WIDGET FOR 'approved' & 'pending_approval' STATUSES ---
   Widget _buildDashboardView(
-      BuildContext context, Map<String, dynamic> vendorData,
-      {required bool isPending}) {
+    BuildContext context,
+    Map<String, dynamic> vendorData, {
+    required bool isPending,
+  }) {
     final String companyLogo = vendorData['company_logo'] ?? '';
     final String companyName = vendorData['name'] ?? 'Vendor';
     final String location = vendorData['location'] ?? 'Unknown Location';
@@ -137,7 +139,8 @@ class VendorDashboard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                // FIX 3: Replaced deprecated withOpacity with withAlpha
+                color: Colors.grey.withAlpha(26), // 0.1 opacity
                 spreadRadius: 2,
                 blurRadius: 5,
                 offset: const Offset(0, 3),
@@ -159,7 +162,10 @@ class VendorDashboard extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 companyName,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -178,7 +184,11 @@ class VendorDashboard extends StatelessWidget {
               if (isPending)
                 const Column(
                   children: [
-                    Icon(Icons.hourglass_top_rounded, size: 40, color: Colors.amber),
+                    Icon(
+                      Icons.hourglass_top_rounded,
+                      size: 40,
+                      color: Colors.amber,
+                    ),
                     SizedBox(height: 8),
                     Text(
                       'Profile Under Review',
@@ -195,7 +205,11 @@ class VendorDashboard extends StatelessWidget {
               if (!isPending)
                 const Column(
                   children: [
-                    Icon(Icons.check_circle_outline, size: 40, color: Colors.green),
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 40,
+                      color: Colors.green,
+                    ),
                     SizedBox(height: 8),
                     Text(
                       'Profile Approved',
@@ -246,9 +260,10 @@ class VendorDashboard extends StatelessWidget {
               style: TextStyle(color: Colors.grey),
             ),
           ),
+        // FIX 4: Removed .toList()
         ...services.map((service) {
           return _buildServiceCard(service);
-        }).toList(),
+        }),
       ],
     );
   }
@@ -320,7 +335,9 @@ class VendorDashboard extends StatelessWidget {
         children: [
           if (service['image_url'] != null && service['image_url'].isNotEmpty)
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               child: Image.network(
                 service['image_url'],
                 height: 200,
@@ -330,7 +347,11 @@ class VendorDashboard extends StatelessWidget {
                     height: 200,
                     color: Colors.grey.shade300,
                     child: const Center(
-                      child: Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey,
+                        size: 50,
+                      ),
                     ),
                   );
                 },
@@ -343,15 +364,19 @@ class VendorDashboard extends StatelessWidget {
               children: [
                 Text(
                   service['title'] ?? 'No Title',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '₹${service['price'] ?? 'N/A'}',
                   style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6A11CB)),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6A11CB),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
