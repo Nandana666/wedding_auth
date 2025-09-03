@@ -1,119 +1,184 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'vendor_details_page.dart';
 
 class VendorPhotographyPage extends StatelessWidget {
   VendorPhotographyPage({super.key});
 
-  final CollectionReference vendors = FirebaseFirestore.instance.collection(
-    'vendors',
-  );
+  final CollectionReference vendors =
+      FirebaseFirestore.instance.collection('vendors');
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Photography Vendors")),
+      appBar: AppBar(
+        title: const Text("Photography Vendors"),
+        backgroundColor: Colors.blue, // Different theme for Photography
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: vendors
-            // Important: Firestore queries are case-sensitive. Use a consistent case.
-            .where('category', isEqualTo: 'photography')
+            .where('category', isEqualTo: 'Photography')
             .where('status', isEqualTo: 'approved')
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No photography vendors found'));
+
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) {
+            return const Center(child: Text('No vendors available.'));
           }
 
-          final vendorDocs = snapshot.data!.docs;
-
-          return GridView.builder(
+          return ListView.builder(
             padding: const EdgeInsets.all(12),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: MediaQuery.of(context).size.width < 600 ? 2 : 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.75,
-            ),
-            itemCount: vendorDocs.length,
+            itemCount: docs.length,
             itemBuilder: (context, index) {
-              final vendor = vendorDocs[index];
-              // FIX: Get both the vendor's data and its unique ID.
+              final vendor = docs[index];
               final vendorData = vendor.data() as Map<String, dynamic>;
-              final vendorId = vendor.id;
 
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      // FIX: Pass both required parameters to VendorDetailsPage.
-                      builder: (_) => VendorDetailsPage(
-                        vendorId: vendorId,
-                        vendorData: vendorData,
+              final images = List<String>.from(vendorData['images'] ?? []);
+              final services = List<String>.from(vendorData['services'] ?? []);
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                elevation: 5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Image carousel
+                    if (images.isNotEmpty)
+                      SizedBox(
+                        height: 200,
+                        child: PageView.builder(
+                          itemCount: images.length,
+                          itemBuilder: (context, i) {
+                            return ClipRRect(
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16)),
+                              child: Image.network(
+                                images[i],
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.broken_image, size: 50),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      Container(
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16)),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.image,
+                              size: 50, color: Colors.white),
+                        ),
+                      ),
+
+                    // Vendor Details
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Name & Rating
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                vendorData['name'] ?? 'Vendor Name',
+                                style: const TextStyle(
+                                    fontSize: 20, fontWeight: FontWeight.bold),
+                              ),
+                              Row(
+                                children: [
+                                  const Icon(Icons.star,
+                                      color: Colors.amber, size: 20),
+                                  Text(
+                                    '${vendorData['rating'] ?? 'N/A'}',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Services
+                          if (services.isNotEmpty)
+                            Text(
+                              'Services: ${services.join(', ')}',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          const SizedBox(height: 6),
+
+                          // Price
+                          if (vendorData['priceRange'] != null)
+                            Text(
+                              'Price: ${vendorData['priceRange']}',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          const SizedBox(height: 6),
+
+                          // Location
+                          if (vendorData['location'] != null)
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on,
+                                    color: Colors.blue, size: 18),
+                                const SizedBox(width: 6),
+                                Text(vendorData['location']),
+                              ],
+                            ),
+                          const SizedBox(height: 6),
+
+                          // Contact
+                          if (vendorData['contact'] != null)
+                            Row(
+                              children: [
+                                const Icon(Icons.phone,
+                                    color: Colors.blue, size: 18),
+                                const SizedBox(width: 6),
+                                Text(vendorData['contact']),
+                              ],
+                            ),
+                          const SizedBox(height: 10),
+
+                          // Book button
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Booking ${vendorData['name']}...'),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Book Now'),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
-                child: Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                        child: Image.network(
-                          vendorData['image'] ??
-                              'https://via.placeholder.com/150',
-                          height: 120,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          vendorData['name'] ?? 'Vendor Name',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_outlined,
-                              size: 14,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                vendorData['location'] ?? 'Location',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               );
             },
