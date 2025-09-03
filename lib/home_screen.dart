@@ -1,14 +1,13 @@
+// lib/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'vendor_makeup_page.dart';
-import 'vendor_food_page.dart';
-import 'vendor_decoration_page.dart';
-import 'vendor_photography_page.dart';
-import 'vendor_venues_page.dart';
+// --- UPDATED IMPORTS ---
+// Removed individual vendor pages and added the single reusable list page.
+import 'vendor_list_page.dart';
 import 'vendor_details_page.dart';
-import 'vendor_packages_page.dart';
 import 'user_dashboard.dart';
 import 'login_screen.dart';
 
@@ -27,13 +26,18 @@ class _HomeScreenState extends State<HomeScreen> {
   double maxPrice = 100000;
   double minRating = 0;
 
+  // Added colors to easily customize each category page
   final List<Map<String, dynamic>> categories = [
-    {'title': 'Venues', 'icon': Icons.location_city},
-    {'title': 'Makeup', 'icon': Icons.brush},
-    {'title': 'Catering', 'icon': Icons.restaurant},
-    {'title': 'Photography', 'icon': Icons.camera_alt},
-    {'title': 'Decor', 'icon': Icons.event},
-    {'title': 'Packages', 'icon': Icons.card_giftcard},
+    {'title': 'Venues', 'icon': Icons.location_city, 'color': Colors.brown},
+    {'title': 'Makeup', 'icon': Icons.brush, 'color': Colors.pink},
+    {'title': 'Catering', 'icon': Icons.restaurant, 'color': Colors.orange},
+    {
+      'title': 'Photography',
+      'icon': Icons.camera_alt,
+      'color': Colors.blueGrey,
+    },
+    {'title': 'Decor', 'icon': Icons.event, 'color': Colors.green},
+    {'title': 'Packages', 'icon': Icons.card_giftcard, 'color': Colors.purple},
   ];
 
   @override
@@ -61,9 +65,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               await _auth.signOut();
               if (context.mounted) {
-                Navigator.pushReplacement(
+                // Use pushAndRemoveUntil for a clean navigation stack after logout
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
                 );
               }
             },
@@ -182,7 +188,11 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: categories.length,
             itemBuilder: (context, index) {
               final category = categories[index];
-              return _categoryCard(category['title'], category['icon']);
+              return _categoryCard(
+                category['title'],
+                category['icon'],
+                category['color'],
+              );
             },
           ),
         ),
@@ -204,10 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
           StreamBuilder<QuerySnapshot>(
             stream: _firestore
                 .collection('vendors')
-                .where(
-                  'status',
-                  isEqualTo: 'approved',
-                ) // This is the server-side query
+                .where('status', isEqualTo: 'approved')
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -219,20 +226,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
 
-              // This is the client-side filtering
+              // Client-side filtering
               final vendors = snapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final name = (data['name'] ?? '').toString().toLowerCase();
-                final category = (data['category'] ?? '')
-                    .toString()
-                    .toLowerCase();
-                final price = double.tryParse(data['price'].toString()) ?? 0;
                 final rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
-
-                return (name.contains(searchQuery) ||
-                        category.contains(searchQuery)) &&
-                    (price == 0 || price <= maxPrice) &&
-                    rating >= minRating;
+                // Note: Price filtering would need adjustment based on your data structure
+                return name.contains(searchQuery) && rating >= minRating;
               }).toList();
 
               if (vendors.isEmpty) {
@@ -266,33 +266,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _categoryCard(String title, IconData icon) {
+  Widget _categoryCard(String title, IconData icon, Color color) {
     return GestureDetector(
       onTap: () {
-        Widget page;
-        switch (title) {
-          case 'Venues':
-            page = VendorVenuesPage();
-            break;
-          case 'Makeup':
-            page = VendorMakeupPage();
-            break;
-          case 'Catering':
-            page = VendorFoodPage();
-            break;
-          case 'Photography':
-            page = VendorPhotographyPage();
-            break;
-          case 'Decor':
-            page = VendorDecorationPage();
-            break;
-          case 'Packages':
-            page = VendorPackagesPage();
-            break;
-          default:
-            page = VendorVenuesPage();
-        }
-        Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+        // --- REFACTORED NAVIGATION ---
+        // No more switch statement. Navigate to the single reusable page.
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                VendorListPage(categoryName: title, appBarColor: color),
+          ),
+        );
       },
       child: Container(
         width: 100,
@@ -311,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.pink, size: 30),
+            Icon(icon, color: color, size: 30),
             const SizedBox(height: 8),
             Text(
               title,
@@ -327,6 +312,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _vendorCard(DocumentSnapshot vendor) {
     final data = vendor.data() as Map<String, dynamic>;
     final vendorId = vendor.id;
+
+    // Get an image URL, falling back from company logo to the first service image.
+    String imageUrl = data['company_logo'] ?? '';
+    if (imageUrl.isEmpty) {
+      final services = data['services'] as List<dynamic>?;
+      if (services != null && services.isNotEmpty) {
+        final firstService = services.first as Map<String, dynamic>?;
+        if (firstService != null && firstService['image_url'] != null) {
+          imageUrl = firstService['image_url'];
+        }
+      }
+    }
+    if (imageUrl.isEmpty) {
+      imageUrl = 'https://via.placeholder.com/150';
+    }
 
     return GestureDetector(
       onTap: () {
@@ -350,10 +350,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 top: Radius.circular(12),
               ),
               child: Image.network(
-                data['image'] ?? 'https://via.placeholder.com/150',
+                imageUrl,
                 height: 120,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 120,
+                    width: double.infinity,
+                    color: Colors.grey.shade200,
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.grey.shade400,
+                    ),
+                  );
+                },
               ),
             ),
             Padding(
