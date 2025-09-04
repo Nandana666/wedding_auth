@@ -146,6 +146,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'price': '',
         'image_url': '',
         'image_file': null,
+        'category': null, // Added category field
       });
       _serviceFormKeys.add(GlobalKey<FormState>());
     });
@@ -218,6 +219,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
           'description': service['description'],
           'price': service['price'],
           'image_url': imageUrl ?? '',
+          'category': service['category'], // Saved category
         });
       }
 
@@ -410,6 +412,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       return ServiceForm(
                         key: _serviceFormKeys[index],
                         service: service,
+                        categories: _categories, // Pass categories list
                         onImagePick: (File? image) => setState(
                           () => _services[index]['image_file'] = image,
                         ),
@@ -419,6 +422,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                             _services[index]['description'] = desc,
                         onPriceChanged: (String price) =>
                             _services[index]['price'] = price,
+                        onCategoryChanged: (String? category) => setState(
+                          () => _services[index]['category'] = category,
+                        ),
                         onRemove: () => _removeService(index),
                       );
                     }),
@@ -461,14 +467,16 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 }
 
-// The ServiceForm widget remains the same as it was already correct.
+// The ServiceForm widget now includes a dropdown for category selection
 class ServiceForm extends StatefulWidget {
   final Map<String, dynamic> service;
   final Function(File?) onImagePick;
   final Function(String) onTitleChanged;
   final Function(String) onDescriptionChanged;
   final Function(String) onPriceChanged;
+  final Function(String?) onCategoryChanged;
   final VoidCallback onRemove;
+  final List<String> categories;
 
   const ServiceForm({
     required Key key,
@@ -477,7 +485,9 @@ class ServiceForm extends StatefulWidget {
     required this.onTitleChanged,
     required this.onDescriptionChanged,
     required this.onPriceChanged,
+    required this.onCategoryChanged,
     required this.onRemove,
+    required this.categories,
   }) : super(key: key);
 
   @override
@@ -489,6 +499,7 @@ class _ServiceFormState extends State<ServiceForm> {
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
   late TextEditingController _priceController;
+  String? _selectedCategory;
 
   @override
   void initState() {
@@ -500,6 +511,7 @@ class _ServiceFormState extends State<ServiceForm> {
     _priceController = TextEditingController(
       text: widget.service['price'].toString(),
     );
+    _selectedCategory = widget.service['category'];
   }
 
   @override
@@ -584,6 +596,28 @@ class _ServiceFormState extends State<ServiceForm> {
                 ),
               ),
               const SizedBox(height: 16),
+              // New DropdownButtonFormField for service category
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Service Category',
+                  border: OutlineInputBorder(),
+                ),
+                value: _selectedCategory,
+                items: widget.categories.map((String category) {
+                  return DropdownMenuItem<String>(
+                    value: category,
+                    child: Text(category),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedCategory = newValue;
+                  });
+                  widget.onCategoryChanged(newValue);
+                },
+                validator: (v) => v == null ? 'Please select a category' : null,
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Service Title'),

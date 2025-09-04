@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'vendor_details_page.dart'; // Make sure this path is correct
+import 'vendor_details_page.dart';
 
 class VendorListPage extends StatelessWidget {
   final String categoryName;
@@ -11,12 +11,11 @@ class VendorListPage extends StatelessWidget {
   VendorListPage({
     super.key,
     required this.categoryName,
-    this.appBarColor = Colors.deepPurple, // Default color if none is provided
+    this.appBarColor = Colors.deepPurple,
   });
 
-  final CollectionReference vendors = FirebaseFirestore.instance.collection(
-    'vendors',
-  );
+  final CollectionReference vendors =
+      FirebaseFirestore.instance.collection('vendors');
 
   @override
   Widget build(BuildContext context) {
@@ -26,9 +25,8 @@ class VendorListPage extends StatelessWidget {
         backgroundColor: appBarColor,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // Use the passed categoryName to filter the vendors
         stream: vendors
-            .where('categories', arrayContains: categoryName) // CORRECTED LINE
+            .where('categories', arrayContains: categoryName)
             .where('status', isEqualTo: 'approved')
             .snapshots(),
         builder: (context, snapshot) {
@@ -54,19 +52,15 @@ class VendorListPage extends StatelessWidget {
             itemBuilder: (context, index) {
               final vendor = docs[index];
               final vendorData = vendor.data() as Map<String, dynamic>;
-
               final String name = vendorData['name'] ?? 'Vendor Name';
               final String location = vendorData['location'] ?? 'N/A';
               final String vendorId = vendor.id;
-
-              // Combine company logo and service images into a single list for the carousel
               final List<String> imageUrls = [];
               if (vendorData['company_logo'] != null &&
                   vendorData['company_logo'].isNotEmpty) {
                 imageUrls.add(vendorData['company_logo']);
               }
-              final servicesList =
-                  vendorData['services'] as List<dynamic>? ?? [];
+              final servicesList = vendorData['services'] as List<dynamic>? ?? [];
               for (var service in servicesList) {
                 if (service is Map &&
                     service['image_url'] != null &&
@@ -74,12 +68,9 @@ class VendorListPage extends StatelessWidget {
                   imageUrls.add(service['image_url']);
                 }
               }
-              // If after all that, the list is still empty, add a placeholder.
-              // This can be removed if you prefer the grey box.
               if (imageUrls.isEmpty) {
                 imageUrls.add(
-                  'https://via.placeholder.com/400x200/CCCCCC/FFFFFF?text=No+Image',
-                );
+                    'https://via.placeholder.com/400x200/CCCCCC/FFFFFF?text=No+Image');
               }
 
               return Card(
@@ -97,6 +88,7 @@ class VendorListPage extends StatelessWidget {
                         builder: (_) => VendorDetailsPage(
                           vendorId: vendorId,
                           vendorData: vendorData,
+                          preSelectedCategory: categoryName, // Pass the category here
                         ),
                       ),
                     );
@@ -104,7 +96,6 @@ class VendorListPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Image carousel
                       SizedBox(
                         height: 200,
                         child: PageView.builder(
@@ -126,8 +117,6 @@ class VendorListPage extends StatelessWidget {
                           },
                         ),
                       ),
-
-                      // Vendor Name and Location
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(

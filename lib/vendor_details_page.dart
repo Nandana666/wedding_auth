@@ -3,16 +3,18 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'chat_page.dart'; // Make sure this path is correct
+import 'chat_page.dart';
 
 class VendorDetailsPage extends StatefulWidget {
   final String vendorId;
   final Map<String, dynamic> vendorData;
+  final String? preSelectedCategory; // New optional parameter
 
   const VendorDetailsPage({
     super.key,
     required this.vendorId,
     required this.vendorData,
+    this.preSelectedCategory, // Initialize the new parameter
   });
 
   @override
@@ -22,11 +24,26 @@ class VendorDetailsPage extends StatefulWidget {
 class _VendorDetailsPageState extends State<VendorDetailsPage> {
   bool isShortlisted = false;
   bool isLoading = true;
+  Set<String> serviceCategories = {};
 
   @override
   void initState() {
     super.initState();
     _checkIfShortlisted();
+    _extractServiceCategories();
+  }
+
+  void _extractServiceCategories() {
+    final List<dynamic> services = widget.vendorData['services'] ?? [];
+    Set<String> categories = {};
+    for (var service in services) {
+      if (service is Map && service.containsKey('category')) {
+        categories.add(service['category'] as String);
+      }
+    }
+    setState(() {
+      serviceCategories = categories;
+    });
   }
 
   Future<void> _checkIfShortlisted() async {
@@ -70,9 +87,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       return;
     }
 
-    final userRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid);
+    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     setState(() => isShortlisted = !isShortlisted);
@@ -111,16 +126,12 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     String chatId = ids.join('_');
 
     try {
-      // First, get the current user's name. This read operation is now allowed by the corrected security rules.
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUserId)
           .get();
       final userName = userDoc.data()?['name'] ?? 'New User';
 
-      // THE FIX: Use a single .set() with merge: true instead of .get() and then .set().
-      // This is a single WRITE operation that correctly triggers the 'create' security rule
-      // without needing a 'read' permission on a non-existent document.
       await FirebaseFirestore.instance.collection('chats').doc(chatId).set(
         {
           'participants': [currentUserId, vendorId],
@@ -131,7 +142,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
           'lastMessageTimestamp': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
-      ); // `merge: true` makes this an "upsert" operation.
+      );
 
       if (!mounted) return;
 
@@ -158,7 +169,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final String name = widget.vendorData['name'] ?? 'Vendor Name';
-    final String category = widget.vendorData['category'] ?? 'Uncategorized';
+    final List<dynamic> categories =
+        widget.vendorData['categories'] ?? ['Uncategorized'];
     final String description = widget.vendorData['description'] ?? '';
     final String location =
         widget.vendorData['location'] ?? 'Location not specified';
@@ -166,6 +178,11 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     final String email = widget.vendorData['email'] ?? '';
     final String imageUrl = widget.vendorData['company_logo'] ?? '';
     final List<dynamic> services = widget.vendorData['services'] ?? [];
+
+    // Determine which categories to display
+    final categoriesToDisplay = widget.preSelectedCategory != null
+        ? {widget.preSelectedCategory!}
+        : serviceCategories;
 
     return Scaffold(
       body: CustomScrollView(
@@ -247,7 +264,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            category.toUpperCase(),
+                            categories.join(', ').toUpperCase(),
                             style: const TextStyle(
                               color: Color(0xFF6A11CB),
                               fontWeight: FontWeight.bold,
@@ -318,7 +335,35 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                         ),
                       )
                     else
-                      ...services.map((service) => _buildServiceCard(service)),
+                      ...categoriesToDisplay.map((category) {
+                        final servicesInCategory = services
+                            .where((service) =>
+                                service is Map && service['category'] == category)
+                            .toList();
+
+                        if (servicesInCategory.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              category,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF6A11CB),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ...servicesInCategory.map((service) {
+                              return _buildServiceCard(service);
+                            }),
+                            const SizedBox(height: 24),
+                          ],
+                        );
+                      }).toList(),
                     if (contact.isNotEmpty || email.isNotEmpty) ...[
                       const Divider(height: 40, thickness: 1),
                       const Text(
