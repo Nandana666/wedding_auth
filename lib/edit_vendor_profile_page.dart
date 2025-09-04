@@ -22,7 +22,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   late TextEditingController _descriptionController;
 
   // --- MAIN PROFILE STATE ---
-  String? _selectedCategory;
+  // Changed from String? to Set<String> for multiple selections
+  Set<String> _selectedCategories = {};
   final List<String> _categories = [
     'Makeup',
     'Catering',
@@ -77,9 +78,13 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
             _descriptionController.text = data['description'] ?? '';
             _networkCompanyLogoUrl = data['company_logo'];
 
-            final categoryFromServer = data['category'];
-            if (_categories.contains(categoryFromServer)) {
-              _selectedCategory = categoryFromServer;
+            // Handle loading multiple categories
+            final categoryFromServer = data['categories'];
+            if (categoryFromServer is List) {
+              _selectedCategories = Set<String>.from(categoryFromServer);
+            } else if (categoryFromServer is String) {
+              // Backward compatibility for old single-select data
+              _selectedCategories = {categoryFromServer};
             }
 
             _services = List<Map<String, dynamic>>.from(data['services'] ?? []);
@@ -154,15 +159,14 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 
   Future<void> _saveChanges() async {
-    if (!_formKey.currentState!.validate() || _selectedCategory == null) {
-      if (_selectedCategory == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select a service category.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    // Check form validation and ensure at least one category is selected
+    if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one service category.'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -192,7 +196,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
       String? logoUrlToSave = _networkCompanyLogoUrl;
       if (_companyLogoFile != null) {
         logoUrlToSave = await _uploadImage(_companyLogoFile!);
-        // FIX: Added curly braces
         if (logoUrlToSave == null) {
           throw Exception("Company logo upload failed.");
         }
@@ -204,7 +207,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         File? imageFile = service['image_file'];
         if (imageFile != null) {
           imageUrl = await _uploadImage(imageFile);
-          // FIX: Added curly braces
           if (imageUrl == null) {
             throw Exception(
               "Image upload failed for service: ${service['title']}",
@@ -223,13 +225,12 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'name': _nameController.text.trim(),
         'location': _locationController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'category': _selectedCategory,
+        'categories': _selectedCategories.toList(), // Save the Set as a List
         'company_logo': logoUrlToSave ?? '',
         'services': servicesToSave,
         'status': 'pending_approval',
       }, SetOptions(merge: true));
 
-      // FIX: Added curly braces
       if (!mounted) {
         return;
       }
@@ -271,22 +272,19 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                             backgroundImage: _companyLogoFile != null
                                 ? FileImage(_companyLogoFile!)
                                 : (_networkCompanyLogoUrl != null &&
-                                              _networkCompanyLogoUrl!.isNotEmpty
-                                          ? NetworkImage(
-                                              _networkCompanyLogoUrl!,
-                                            )
-                                          : null)
-                                      as ImageProvider?,
+                                        _networkCompanyLogoUrl!.isNotEmpty
+                                    ? NetworkImage(_networkCompanyLogoUrl!)
+                                    : null) as ImageProvider?,
                             child:
                                 (_companyLogoFile == null &&
-                                    (_networkCompanyLogoUrl == null ||
-                                        _networkCompanyLogoUrl!.isEmpty))
-                                ? Icon(
-                                    Icons.storefront,
-                                    size: 60,
-                                    color: Colors.grey.shade400,
-                                  )
-                                : null,
+                                        (_networkCompanyLogoUrl == null ||
+                                            _networkCompanyLogoUrl!.isEmpty))
+                                    ? Icon(
+                                        Icons.storefront,
+                                        size: 60,
+                                        color: Colors.grey.shade400,
+                                      )
+                                    : null,
                           ),
                           Positioned(
                             bottom: 0,
@@ -318,25 +316,41 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                           v!.isEmpty ? 'Please enter your business name' : null,
                     ),
                     const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      hint: const Text('Select Service Category'),
-                      decoration: const InputDecoration(
-                        labelText: 'Service Category',
-                        border: OutlineInputBorder(),
+                    // Replaced DropdownButtonFormField with Checkbox list
+                    const Text(
+                      'Service Categories',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                      items: _categories
-                          .map(
-                            (c) => DropdownMenuItem<String>(
-                              value: c,
-                              child: Text(c),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedCategory = v),
-                      validator: (v) =>
-                          v == null ? 'Please select a category' : null,
                     ),
+                    const SizedBox(height: 10),
+                    ..._categories.map((category) {
+                      return CheckboxListTile(
+                        title: Text(category),
+                        value: _selectedCategories.contains(category),
+                        onChanged: (bool? isChecked) {
+                          setState(() {
+                            if (isChecked == true) {
+                              _selectedCategories.add(category);
+                            } else {
+                              _selectedCategories.remove(category);
+                            }
+                          });
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        dense: true,
+                      );
+                    }).toList(),
+                    // Validation message for categories
+                    if (_selectedCategories.isEmpty && !_isSaving)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Please select at least one category.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _locationController,
@@ -542,31 +556,31 @@ class _ServiceFormState extends State<ServiceForm> {
                           fit: BoxFit.cover,
                         )
                       : (widget.service['image_url'] != null &&
-                                widget.service['image_url'].isNotEmpty
-                            ? Image.network(
-                                widget.service['image_url'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (c, o, s) => const Icon(
-                                  Icons.broken_image,
+                              widget.service['image_url'].isNotEmpty
+                          ? Image.network(
+                              widget.service['image_url'],
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, o, s) => const Icon(
+                                Icons.broken_image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            )
+                          : const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_a_photo,
                                   size: 50,
                                   color: Colors.grey,
                                 ),
-                              )
-                            : const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_a_photo,
-                                    size: 50,
-                                    color: Colors.grey,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    "Tap to add an image",
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                ],
-                              )),
+                                SizedBox(height: 8),
+                                Text(
+                                  "Tap to add an image",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            )),
                 ),
               ),
               const SizedBox(height: 16),

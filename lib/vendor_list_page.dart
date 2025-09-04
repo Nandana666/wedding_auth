@@ -28,7 +28,7 @@ class VendorListPage extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         // Use the passed categoryName to filter the vendors
         stream: vendors
-            .where('category', isEqualTo: categoryName)
+            .where('categories', arrayContains: categoryName) // CORRECTED LINE
             .where('status', isEqualTo: 'approved')
             .snapshots(),
         builder: (context, snapshot) {
