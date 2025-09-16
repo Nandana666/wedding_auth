@@ -19,12 +19,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   late TextEditingController _nameController;
   late TextEditingController _locationController;
   late TextEditingController _descriptionController;
-  // New controllers for phone and address
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
 
-  // --- MAIN PROFILE STATE ---
-  // Changed from String? to Set<String> for multiple selections
   Set<String> _selectedCategories = {};
   final List<String> _categories = [
     'Makeup',
@@ -147,9 +144,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'title': '',
         'description': '',
         'price': '',
-        'image_url': '',
-        'image_file': null,
-        'category': null, // Added category field
+        'image_urls': [], // Initialize as a list
+        'image_files': [], // Initialize as a list of files
+        'category': null,
       });
       _serviceFormKeys.add(GlobalKey<FormState>());
     });
@@ -208,19 +205,21 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
       for (var service in _services) {
         List<String> uploadedUrls = [];
 
-        for (File file in service['image_files']) {
+        // Upload new image files for the service
+        for (File file in (service['image_files'] as List<File>)) {
           final url = await _uploadImage(file);
           if (url != null) uploadedUrls.add(url);
         }
 
-        uploadedUrls.addAll(service['image_urls']);
+        // Add existing network image URLs
+        uploadedUrls.addAll(List<String>.from(service['image_urls'] ?? []));
 
         servicesToSave.add({
           'title': service['title'],
           'description': service['description'],
           'price': service['price'],
-          'image_url': imageUrl ?? '',
-          'category': service['category'], // Saved category
+          'image_urls': uploadedUrls, // Use the list of URLs
+          'category': service['category'],
         });
       }
 
@@ -228,7 +227,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'name': _nameController.text.trim(),
         'location': _locationController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'categories': _selectedCategories.toList(), // Save the Set as a List
+        'phone': _phoneController.text.trim(), // Save phone
+        'address': _addressController.text.trim(), // Save address
+        'categories': _selectedCategories.toList(),
         'company_logo': logoUrlToSave ?? '',
         'services': servicesToSave,
         'status': 'pending_approval',
@@ -331,7 +332,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         dense: true,
                       );
                     }).toList(),
-                    // Validation message for categories
                     if (_selectedCategories.isEmpty && !_isSaving)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -408,20 +408,42 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       return ServiceForm(
                         key: _serviceFormKeys[index],
                         service: service,
-                        categories: _categories, // Pass categories list
-                        onImagePick: (File? image) => setState(
-                          () => _services[index]['image_file'] = image,
-                        ),
+                        categories: _categories,
+                        // Update onImagePick to handle a list of files
+                        onImagePick: (List<File> images) {
+                          setState(() {
+                            // Clear existing image_files and add new ones
+                            service['image_files'] = images;
+                          });
+                        },
                         onTitleChanged: (String title) =>
-                            _services[index]['title'] = title,
+                            service['title'] = title,
                         onDescriptionChanged: (String desc) =>
-                            _services[index]['description'] = desc,
+                            service['description'] = desc,
                         onPriceChanged: (String price) =>
-                            _services[index]['price'] = price,
+                            service['price'] = price,
                         onCategoryChanged: (String? category) => setState(
-                          () => _services[index]['category'] = category,
+                          () => service['category'] = category,
                         ),
                         onRemove: () => _removeService(index),
+                        // Add this to allow removing network images
+                        onNetworkImageRemove: (String imageUrl) {
+                          setState(() {
+                            List<String> currentUrls =
+                                List<String>.from(service['image_urls']);
+                            currentUrls.remove(imageUrl);
+                            service['image_urls'] = currentUrls;
+                          });
+                        },
+                        // Add this to allow removing local files
+                        onFileImageRemove: (File file) {
+                          setState(() {
+                            List<File> currentFiles =
+                                List<File>.from(service['image_files']);
+                            currentFiles.remove(file);
+                            service['image_files'] = currentFiles;
+                          });
+                        },
                       );
                     }),
                     const SizedBox(height: 30),
@@ -449,17 +471,31 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 }
 
-// The ServiceForm widget now includes a dropdown for category selection
 class ServiceForm extends StatefulWidget {
   final Map<String, dynamic> service;
   final VoidCallback onRemove;
   final List<String> categories;
+  // Updated onImagePick to handle a list of files
+  final ValueChanged<List<File>> onImagePick;
+  final ValueChanged<String> onTitleChanged;
+  final ValueChanged<String> onDescriptionChanged;
+  final ValueChanged<String> onPriceChanged;
+  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String> onNetworkImageRemove;
+  final ValueChanged<File> onFileImageRemove;
 
   const ServiceForm({
     required Key key,
     required this.service,
     required this.onRemove,
     required this.categories,
+    required this.onImagePick,
+    required this.onTitleChanged,
+    required this.onDescriptionChanged,
+    required this.onPriceChanged,
+    required this.onCategoryChanged,
+    required this.onNetworkImageRemove,
+    required this.onFileImageRemove,
   }) : super(key: key);
 
   @override
@@ -473,6 +509,9 @@ class _ServiceFormState extends State<ServiceForm> {
   late TextEditingController _priceController;
   String? _selectedCategory;
 
+  List<File> _currentImageFiles = []; // To manage picked files
+  List<String> _currentNetworkImageUrls = []; // To manage network URLs
+
   @override
   void initState() {
     super.initState();
@@ -482,6 +521,19 @@ class _ServiceFormState extends State<ServiceForm> {
     _priceController =
         TextEditingController(text: widget.service['price'].toString());
     _selectedCategory = widget.service['category'];
+
+    _currentImageFiles =
+        List<File>.from(widget.service['image_files'] ?? []); // Initialize with existing files
+    _currentNetworkImageUrls =
+        List<String>.from(widget.service['image_urls'] ?? []); // Initialize with existing URLs
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
+    super.dispose();
   }
 
   Future<void> _pickImages() async {
@@ -489,8 +541,9 @@ class _ServiceFormState extends State<ServiceForm> {
         await _picker.pickMultiImage(imageQuality: 70);
     if (pickedFiles != null && pickedFiles.isNotEmpty) {
       setState(() {
-        widget.service['image_files']
+        _currentImageFiles
             .addAll(pickedFiles.map((e) => File(e.path)).toList());
+        widget.onImagePick(_currentImageFiles); // Inform parent about new files
       });
     }
   }
@@ -521,7 +574,7 @@ class _ServiceFormState extends State<ServiceForm> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ...widget.service['image_files'].map<Widget>((file) {
+                  ..._currentImageFiles.map<Widget>((file) {
                     return Stack(
                       children: [
                         Image.file(file,
@@ -532,7 +585,8 @@ class _ServiceFormState extends State<ServiceForm> {
                           child: GestureDetector(
                             onTap: () {
                               setState(() {
-                                widget.service['image_files'].remove(file);
+                                _currentImageFiles.remove(file);
+                                widget.onFileImageRemove(file); // Notify parent to remove
                               });
                             },
                             child: const Icon(Icons.close, color: Colors.red),
@@ -541,9 +595,26 @@ class _ServiceFormState extends State<ServiceForm> {
                       ],
                     );
                   }).toList(),
-                  ...widget.service['image_urls'].map<Widget>((url) {
-                    return Image.network(url,
-                        width: 100, height: 100, fit: BoxFit.cover);
+                  ..._currentNetworkImageUrls.map<Widget>((url) {
+                    return Stack(
+                      children: [
+                        Image.network(url,
+                            width: 100, height: 100, fit: BoxFit.cover),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _currentNetworkImageUrls.remove(url);
+                                widget.onNetworkImageRemove(url); // Notify parent to remove
+                              });
+                            },
+                            child: const Icon(Icons.close, color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    );
                   }).toList(),
                   GestureDetector(
                     onTap: _pickImages,
@@ -557,7 +628,6 @@ class _ServiceFormState extends State<ServiceForm> {
                 ],
               ),
               const SizedBox(height: 16),
-              // New DropdownButtonFormField for service category
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
                   labelText: 'Service Category',
@@ -570,7 +640,7 @@ class _ServiceFormState extends State<ServiceForm> {
                     .toList(),
                 onChanged: (val) {
                   setState(() => _selectedCategory = val);
-                  widget.service['category'] = val;
+                  widget.onCategoryChanged(val);
                 },
                 validator: (v) =>
                     v == null ? 'Please select a category' : null,
@@ -579,14 +649,14 @@ class _ServiceFormState extends State<ServiceForm> {
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Service Title'),
-                onChanged: (val) => widget.service['title'] = val,
+                onChanged: widget.onTitleChanged,
                 validator: (v) => v!.isEmpty ? 'Title is required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Description'),
-                onChanged: (val) => widget.service['description'] = val,
+                onChanged: widget.onDescriptionChanged,
                 maxLines: 3,
                 validator: (v) =>
                     v!.isEmpty ? 'Description is required' : null,
@@ -596,7 +666,7 @@ class _ServiceFormState extends State<ServiceForm> {
                 controller: _priceController,
                 decoration: const InputDecoration(labelText: 'Starting Price'),
                 keyboardType: TextInputType.number,
-                onChanged: (val) => widget.service['price'] = val,
+                onChanged: widget.onPriceChanged,
                 validator: (v) => v!.isEmpty ? 'Price is required' : null,
               ),
             ],
