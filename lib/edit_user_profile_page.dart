@@ -17,6 +17,9 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _locationController;
+  late TextEditingController _phoneController;
+  late TextEditingController _addressController;
+
   bool _isSaving = false;
 
   @override
@@ -25,6 +28,8 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
     _nameController = TextEditingController(text: widget.userData['name']);
     _emailController = TextEditingController(text: widget.userData['email']);
     _locationController = TextEditingController(text: widget.userData['location']);
+    _phoneController = TextEditingController(text: widget.userData['phone']);
+    _addressController = TextEditingController(text: widget.userData['address']);
   }
 
   @override
@@ -32,6 +37,8 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
     _nameController.dispose();
     _emailController.dispose();
     _locationController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -45,9 +52,11 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'location': _locationController.text.trim(),
+          'phone': _phoneController.text.trim(),
+          'address': _addressController.text.trim(),
         });
 
-        // Update Auth email using verifyBeforeUpdateEmail if changed
+        // Update Auth email if changed
         if (_emailController.text.trim() != user.email) {
           await user.verifyBeforeUpdateEmail(_emailController.text.trim());
           if (mounted) {
@@ -121,6 +130,35 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 20),
+
+              // Phone
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Please enter your phone number';
+                  if (!RegExp(r'^\d{10}$').hasMatch(v)) {
+                    return 'Please enter a valid 10-digit phone number';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // Address
+              TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Address',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
               ),
               const SizedBox(height: 20),
 

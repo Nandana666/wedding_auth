@@ -19,7 +19,12 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   late TextEditingController _nameController;
   late TextEditingController _locationController;
   late TextEditingController _descriptionController;
+  // New controllers for phone and address
+  late TextEditingController _phoneController;
+  late TextEditingController _addressController;
 
+  // --- MAIN PROFILE STATE ---
+  // Changed from String? to Set<String> for multiple selections
   Set<String> _selectedCategories = {};
   final List<String> _categories = [
     'Makeup',
@@ -46,6 +51,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     _nameController = TextEditingController();
     _locationController = TextEditingController();
     _descriptionController = TextEditingController();
+    _phoneController = TextEditingController();
+    _addressController = TextEditingController();
     _loadVendorData();
   }
 
@@ -54,6 +61,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     _nameController.dispose();
     _locationController.dispose();
     _descriptionController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -71,6 +80,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
             _nameController.text = data['name'] ?? '';
             _locationController.text = data['location'] ?? '';
             _descriptionController.text = data['description'] ?? '';
+            _phoneController.text = data['phone'] ?? '';
+            _addressController.text = data['address'] ?? '';
             _networkCompanyLogoUrl = data['company_logo'];
 
             final categoryFromServer = data['categories'];
@@ -136,9 +147,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'title': '',
         'description': '',
         'price': '',
-        'image_urls': <String>[],
-        'image_files': <File>[],
-        'category': null,
+        'image_url': '',
+        'image_file': null,
+        'category': null, // Added category field
       });
       _serviceFormKeys.add(GlobalKey<FormState>());
     });
@@ -208,8 +219,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
           'title': service['title'],
           'description': service['description'],
           'price': service['price'],
-          'image_urls': uploadedUrls,
-          'category': service['category'],
+          'image_url': imageUrl ?? '',
+          'category': service['category'], // Saved category
         });
       }
 
@@ -217,7 +228,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'name': _nameController.text.trim(),
         'location': _locationController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'categories': _selectedCategories.toList(),
+        'categories': _selectedCategories.toList(), // Save the Set as a List
         'company_logo': logoUrlToSave ?? '',
         'services': servicesToSave,
         'status': 'pending_approval',
@@ -320,6 +331,15 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         dense: true,
                       );
                     }).toList(),
+                    // Validation message for categories
+                    if (_selectedCategories.isEmpty && !_isSaving)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Please select at least one category.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _locationController,
@@ -329,6 +349,24 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       ),
                       validator: (v) =>
                           v!.isEmpty ? 'Please enter your location' : null,
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _addressController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Address',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -370,7 +408,19 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       return ServiceForm(
                         key: _serviceFormKeys[index],
                         service: service,
-                        categories: _categories,
+                        categories: _categories, // Pass categories list
+                        onImagePick: (File? image) => setState(
+                          () => _services[index]['image_file'] = image,
+                        ),
+                        onTitleChanged: (String title) =>
+                            _services[index]['title'] = title,
+                        onDescriptionChanged: (String desc) =>
+                            _services[index]['description'] = desc,
+                        onPriceChanged: (String price) =>
+                            _services[index]['price'] = price,
+                        onCategoryChanged: (String? category) => setState(
+                          () => _services[index]['category'] = category,
+                        ),
                         onRemove: () => _removeService(index),
                       );
                     }),
@@ -399,6 +449,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 }
 
+// The ServiceForm widget now includes a dropdown for category selection
 class ServiceForm extends StatefulWidget {
   final Map<String, dynamic> service;
   final VoidCallback onRemove;
@@ -505,7 +556,8 @@ class _ServiceFormState extends State<ServiceForm> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+              // New DropdownButtonFormField for service category
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
                   labelText: 'Service Category',
