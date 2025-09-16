@@ -8,13 +8,13 @@ import 'chat_page.dart';
 class VendorDetailsPage extends StatefulWidget {
   final String vendorId;
   final Map<String, dynamic> vendorData;
-  final String? preSelectedCategory; // New optional parameter
+  final String? preSelectedCategory;
 
   const VendorDetailsPage({
     super.key,
     required this.vendorId,
     required this.vendorData,
-    this.preSelectedCategory, // Initialize the new parameter
+    this.preSelectedCategory,
   });
 
   @override
@@ -70,7 +70,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         }
       }
     } catch (e) {
-      // Error is handled silently for a better user experience
+      // silent error handling
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -179,7 +179,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     final String imageUrl = widget.vendorData['company_logo'] ?? '';
     final List<dynamic> services = widget.vendorData['services'] ?? [];
 
-    // Determine which categories to display
     final categoriesToDisplay = widget.preSelectedCategory != null
         ? {widget.preSelectedCategory!}
         : serviceCategories;
@@ -427,11 +426,13 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
 
   Widget _buildServiceCard(dynamic service) {
     if (service is! Map<String, dynamic>) return const SizedBox.shrink();
-    final String imageUrl = service['image_url'] ?? '';
+
+    final List<dynamic> imageUrls = service['image_urls'] ?? [];
     final String title = service['title'] ?? 'No Title';
     final String description =
         service['description'] ?? 'No description available.';
     final String price = service['price']?.toString() ?? 'N/A';
+
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 16),
@@ -440,18 +441,51 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (imageUrl.isNotEmpty)
-            Image.network(
-              imageUrl,
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                height: 180,
-                color: Colors.grey.shade200,
-                child: const Center(
-                  child: Icon(Icons.broken_image, color: Colors.grey),
-                ),
+          if (imageUrls.isNotEmpty)
+            SizedBox(
+              height: 200,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  PageView.builder(
+                    itemCount: imageUrls.length,
+                    controller: PageController(),
+                    itemBuilder: (context, index) {
+                      final url = imageUrls[index];
+                      return Image.network(
+                        url,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 200,
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        imageUrls.length,
+                        (index) => Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           Padding(

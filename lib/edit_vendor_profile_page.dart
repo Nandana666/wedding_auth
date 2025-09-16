@@ -15,14 +15,11 @@ class EditVendorProfilePage extends StatefulWidget {
 }
 
 class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
-  // --- KEYS & CONTROLLERS ---
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _locationController;
   late TextEditingController _descriptionController;
 
-  // --- MAIN PROFILE STATE ---
-  // Changed from String? to Set<String> for multiple selections
   Set<String> _selectedCategories = {};
   final List<String> _categories = [
     'Makeup',
@@ -35,11 +32,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   File? _companyLogoFile;
   String? _networkCompanyLogoUrl;
 
-  // --- DYNAMIC SERVICES STATE ---
   List<Map<String, dynamic>> _services = [];
   List<GlobalKey<FormState>> _serviceFormKeys = [];
 
-  // --- UI/HELPER STATE ---
   bool _isLoading = true;
   bool _isSaving = false;
   String? _errorMessage;
@@ -78,16 +73,18 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
             _descriptionController.text = data['description'] ?? '';
             _networkCompanyLogoUrl = data['company_logo'];
 
-            // Handle loading multiple categories
             final categoryFromServer = data['categories'];
             if (categoryFromServer is List) {
               _selectedCategories = Set<String>.from(categoryFromServer);
             } else if (categoryFromServer is String) {
-              // Backward compatibility for old single-select data
               _selectedCategories = {categoryFromServer};
             }
 
             _services = List<Map<String, dynamic>>.from(data['services'] ?? []);
+            for (var service in _services) {
+              service['image_urls'] = List<String>.from(service['image_urls'] ?? []);
+              service['image_files'] = <File>[];
+            }
             _serviceFormKeys = List.generate(
               _services.length,
               (index) => GlobalKey<FormState>(),
@@ -97,14 +94,10 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
       } catch (e) {
         setState(() => _errorMessage = "Failed to load data: $e");
       } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     } else {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -119,10 +112,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 
   Future<String?> _uploadImage(File image) async {
-    // !!! IMPORTANT: Replace with your Cloudinary details !!!
     final cloudinary = CloudinaryPublic(
-      'dc9kib0cr',
-      'ml_default',
+      'dc9kib0cr', // <-- replace with your cloud name
+      'ml_default', // <-- replace with your preset
       cache: false,
     );
     try {
@@ -144,9 +136,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'title': '',
         'description': '',
         'price': '',
-        'image_url': '',
-        'image_file': null,
-        'category': null, // Added category field
+        'image_urls': <String>[],
+        'image_files': <File>[],
+        'category': null,
       });
       _serviceFormKeys.add(GlobalKey<FormState>());
     });
@@ -160,11 +152,10 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 
   Future<void> _saveChanges() async {
-    // Check form validation and ensure at least one category is selected
     if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select at least one service category.'),
+          content: Text('Please fill all required details.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -204,22 +195,21 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
 
       List<Map<String, dynamic>> servicesToSave = [];
       for (var service in _services) {
-        String? imageUrl = service['image_url'];
-        File? imageFile = service['image_file'];
-        if (imageFile != null) {
-          imageUrl = await _uploadImage(imageFile);
-          if (imageUrl == null) {
-            throw Exception(
-              "Image upload failed for service: ${service['title']}",
-            );
-          }
+        List<String> uploadedUrls = [];
+
+        for (File file in service['image_files']) {
+          final url = await _uploadImage(file);
+          if (url != null) uploadedUrls.add(url);
         }
+
+        uploadedUrls.addAll(service['image_urls']);
+
         servicesToSave.add({
           'title': service['title'],
           'description': service['description'],
           'price': service['price'],
-          'image_url': imageUrl ?? '',
-          'category': service['category'], // Saved category
+          'image_urls': uploadedUrls,
+          'category': service['category'],
         });
       }
 
@@ -227,15 +217,13 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'name': _nameController.text.trim(),
         'location': _locationController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'categories': _selectedCategories.toList(), // Save the Set as a List
+        'categories': _selectedCategories.toList(),
         'company_logo': logoUrlToSave ?? '',
         'services': servicesToSave,
         'status': 'pending_approval',
       }, SetOptions(merge: true));
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile submitted for admin review!'),
@@ -246,9 +234,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -277,16 +263,12 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                                         _networkCompanyLogoUrl!.isNotEmpty
                                     ? NetworkImage(_networkCompanyLogoUrl!)
                                     : null) as ImageProvider?,
-                            child:
-                                (_companyLogoFile == null &&
-                                        (_networkCompanyLogoUrl == null ||
-                                            _networkCompanyLogoUrl!.isEmpty))
-                                    ? Icon(
-                                        Icons.storefront,
-                                        size: 60,
-                                        color: Colors.grey.shade400,
-                                      )
-                                    : null,
+                            child: (_companyLogoFile == null &&
+                                    (_networkCompanyLogoUrl == null ||
+                                        _networkCompanyLogoUrl!.isEmpty))
+                                ? Icon(Icons.storefront,
+                                    size: 60, color: Colors.grey.shade400)
+                                : null,
                           ),
                           Positioned(
                             bottom: 0,
@@ -296,11 +278,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                               child: const CircleAvatar(
                                 radius: 20,
                                 backgroundColor: Color(0xFF6A11CB),
-                                child: Icon(
-                                  Icons.edit,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                                child: Icon(Icons.edit,
+                                    color: Colors.white, size: 20),
                               ),
                             ),
                           ),
@@ -318,13 +297,10 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                           v!.isEmpty ? 'Please enter your business name' : null,
                     ),
                     const SizedBox(height: 20),
-                    // Replaced DropdownButtonFormField with Checkbox list
                     const Text(
                       'Service Categories',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 10),
                     ..._categories.map((category) {
@@ -344,15 +320,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         dense: true,
                       );
                     }).toList(),
-                    // Validation message for categories
-                    if (_selectedCategories.isEmpty && !_isSaving)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'Please select at least one category.',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _locationController,
@@ -368,8 +335,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       controller: _descriptionController,
                       decoration: const InputDecoration(
                         labelText: 'About Your Business',
-                        hintText:
-                            'A summary of your business, experience, and unique qualities.',
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 5,
@@ -380,13 +345,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Your Services',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        const Text('Your Services',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
                         ElevatedButton.icon(
                           onPressed: _addService,
                           style: ElevatedButton.styleFrom(
@@ -401,43 +362,23 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                     const SizedBox(height: 16),
                     if (_services.isEmpty)
                       const Center(
-                        child: Text(
-                          'Click "Add Service" to list what you offer.',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
+                          child: Text('Click "Add Service" to list what you offer.',
+                              style: TextStyle(color: Colors.grey))),
                     ..._services.asMap().entries.map((entry) {
                       int index = entry.key;
                       Map<String, dynamic> service = entry.value;
                       return ServiceForm(
                         key: _serviceFormKeys[index],
                         service: service,
-                        categories: _categories, // Pass categories list
-                        onImagePick: (File? image) => setState(
-                          () => _services[index]['image_file'] = image,
-                        ),
-                        onTitleChanged: (String title) =>
-                            _services[index]['title'] = title,
-                        onDescriptionChanged: (String desc) =>
-                            _services[index]['description'] = desc,
-                        onPriceChanged: (String price) =>
-                            _services[index]['price'] = price,
-                        onCategoryChanged: (String? category) => setState(
-                          () => _services[index]['category'] = category,
-                        ),
+                        categories: _categories,
                         onRemove: () => _removeService(index),
                       );
                     }),
                     const SizedBox(height: 30),
                     if (_errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: Text(
-                          _errorMessage!,
+                      Text(_errorMessage!,
                           style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                          textAlign: TextAlign.center),
                     ElevatedButton(
                       onPressed: _isSaving ? null : _saveChanges,
                       style: ElevatedButton.styleFrom(
@@ -446,18 +387,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         foregroundColor: Colors.white,
                       ),
                       child: _isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 3,
-                              ),
-                            )
-                          : const Text(
-                              'Submit for Review',
-                              style: TextStyle(fontSize: 16),
-                            ),
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Submit for Review',
+                              style: TextStyle(fontSize: 16)),
                     ),
                   ],
                 ),
@@ -467,25 +399,14 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 }
 
-// The ServiceForm widget now includes a dropdown for category selection
 class ServiceForm extends StatefulWidget {
   final Map<String, dynamic> service;
-  final Function(File?) onImagePick;
-  final Function(String) onTitleChanged;
-  final Function(String) onDescriptionChanged;
-  final Function(String) onPriceChanged;
-  final Function(String?) onCategoryChanged;
   final VoidCallback onRemove;
   final List<String> categories;
 
   const ServiceForm({
     required Key key,
     required this.service,
-    required this.onImagePick,
-    required this.onTitleChanged,
-    required this.onDescriptionChanged,
-    required this.onPriceChanged,
-    required this.onCategoryChanged,
     required this.onRemove,
     required this.categories,
   }) : super(key: key);
@@ -505,30 +426,21 @@ class _ServiceFormState extends State<ServiceForm> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.service['title']);
-    _descriptionController = TextEditingController(
-      text: widget.service['description'],
-    );
-    _priceController = TextEditingController(
-      text: widget.service['price'].toString(),
-    );
+    _descriptionController =
+        TextEditingController(text: widget.service['description']);
+    _priceController =
+        TextEditingController(text: widget.service['price'].toString());
     _selectedCategory = widget.service['category'];
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _priceController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
-    if (pickedFile != null) {
-      widget.onImagePick(File(pickedFile.path));
+  Future<void> _pickImages() async {
+    final List<XFile>? pickedFiles =
+        await _picker.pickMultiImage(imageQuality: 70);
+    if (pickedFiles != null && pickedFiles.isNotEmpty) {
+      setState(() {
+        widget.service['image_files']
+            .addAll(pickedFiles.map((e) => File(e.path)).toList());
+      });
     }
   }
 
@@ -551,93 +463,88 @@ class _ServiceFormState extends State<ServiceForm> {
                   onPressed: widget.onRemove,
                 ),
               ),
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 150,
-                  width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade400),
+              const Text("Service Images",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...widget.service['image_files'].map<Widget>((file) {
+                    return Stack(
+                      children: [
+                        Image.file(file,
+                            width: 100, height: 100, fit: BoxFit.cover),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                widget.service['image_files'].remove(file);
+                              });
+                            },
+                            child: const Icon(Icons.close, color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                  ...widget.service['image_urls'].map<Widget>((url) {
+                    return Image.network(url,
+                        width: 100, height: 100, fit: BoxFit.cover);
+                  }).toList(),
+                  GestureDetector(
+                    onTap: _pickImages,
+                    child: Container(
+                      width: 100,
+                      height: 100,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.add_a_photo),
+                    ),
                   ),
-                  child: widget.service['image_file'] != null
-                      ? Image.file(
-                          widget.service['image_file'],
-                          fit: BoxFit.cover,
-                        )
-                      : (widget.service['image_url'] != null &&
-                              widget.service['image_url'].isNotEmpty
-                          ? Image.network(
-                              widget.service['image_url'],
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, o, s) => const Icon(
-                                Icons.broken_image,
-                                size: 50,
-                                color: Colors.grey,
-                              ),
-                            )
-                          : const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_a_photo,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  "Tap to add an image",
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            )),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              // New DropdownButtonFormField for service category
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
                   labelText: 'Service Category',
                   border: OutlineInputBorder(),
                 ),
                 value: _selectedCategory,
-                items: widget.categories.map((String category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedCategory = newValue;
-                  });
-                  widget.onCategoryChanged(newValue);
+                items: widget.categories
+                    .map((c) =>
+                        DropdownMenuItem<String>(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: (val) {
+                  setState(() => _selectedCategory = val);
+                  widget.service['category'] = val;
                 },
-                validator: (v) => v == null ? 'Please select a category' : null,
+                validator: (v) =>
+                    v == null ? 'Please select a category' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Service Title'),
-                onChanged: widget.onTitleChanged,
+                onChanged: (val) => widget.service['title'] = val,
                 validator: (v) => v!.isEmpty ? 'Title is required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Description'),
-                onChanged: widget.onDescriptionChanged,
+                onChanged: (val) => widget.service['description'] = val,
                 maxLines: 3,
-                validator: (v) => v!.isEmpty ? 'Description is required' : null,
+                validator: (v) =>
+                    v!.isEmpty ? 'Description is required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _priceController,
                 decoration: const InputDecoration(labelText: 'Starting Price'),
                 keyboardType: TextInputType.number,
-                onChanged: widget.onPriceChanged,
+                onChanged: (val) => widget.service['price'] = val,
                 validator: (v) => v!.isEmpty ? 'Price is required' : null,
               ),
             ],
