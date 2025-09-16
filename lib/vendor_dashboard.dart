@@ -119,10 +119,8 @@ class VendorDashboard extends StatelessWidget {
 
   // --- SHARED WIDGET FOR 'approved' & 'pending_approval' STATUSES ---
   Widget _buildDashboardView(
-    BuildContext context,
-    Map<String, dynamic> vendorData, {
-    required bool isPending,
-  }) {
+      BuildContext context, Map<String, dynamic> vendorData,
+      {required bool isPending}) {
     final String companyLogo = vendorData['company_logo'] ?? '';
     final String companyName = vendorData['name'] ?? 'Vendor';
     final String location = vendorData['location'] ?? 'Unknown Location';
@@ -139,8 +137,7 @@ class VendorDashboard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                // FIX 3: Replaced deprecated withOpacity with withAlpha
-                color: Colors.grey.withAlpha(26), // 0.1 opacity
+                color: Colors.grey.withAlpha(26),
                 spreadRadius: 2,
                 blurRadius: 5,
                 offset: const Offset(0, 3),
@@ -260,7 +257,6 @@ class VendorDashboard extends StatelessWidget {
               style: TextStyle(color: Colors.grey),
             ),
           ),
-        // FIX 4: Removed .toList()
         ...services.map((service) {
           return _buildServiceCard(service);
         }),
@@ -326,6 +322,8 @@ class VendorDashboard extends StatelessWidget {
   }
 
   Widget _buildServiceCard(Map<String, dynamic> service) {
+    final List<dynamic> imageUrls = service['image_urls'] ?? [];
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -333,25 +331,33 @@ class VendorDashboard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (service['image_url'] != null && service['image_url'].isNotEmpty)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: Image.network(
-                service['image_url'],
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 200,
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Colors.grey,
-                        size: 50,
-                      ),
+          // FIX: Replaced single image with a PageView for horizontal scrolling
+          if (imageUrls.isNotEmpty)
+            SizedBox(
+              height: 200, // Fixed height for the image carousel
+              child: PageView.builder(
+                itemCount: imageUrls.length,
+                itemBuilder: (context, index) {
+                  return ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
+                    child: Image.network(
+                      imageUrls[index],
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 200,
+                          color: Colors.grey.shade300,
+                          child: const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              color: Colors.grey,
+                              size: 50,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },

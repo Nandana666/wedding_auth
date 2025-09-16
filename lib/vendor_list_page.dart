@@ -55,32 +55,19 @@ class VendorListPage extends StatelessWidget {
               final String name = vendorData['name'] ?? 'Vendor Name';
               final String location = vendorData['location'] ?? 'N/A';
               final String vendorId = vendor.id;
-
-              // Collect images
               final List<String> imageUrls = [];
               if (vendorData['company_logo'] != null &&
-                  vendorData['company_logo'].toString().isNotEmpty) {
+                  vendorData['company_logo'].isNotEmpty) {
                 imageUrls.add(vendorData['company_logo']);
               }
-
               final servicesList = vendorData['services'] as List<dynamic>? ?? [];
               for (var service in servicesList) {
-                if (service is Map) {
-                  // Handle multiple images per service
-                  if (service['image_urls'] != null &&
-                      service['image_urls'] is List &&
-                      (service['image_urls'] as List).isNotEmpty) {
-                    imageUrls.addAll(
-                        (service['image_urls'] as List).map((e) => e.toString()));
-                  }
-                  // (Optional) backward compatibility with old single image field
-                  else if (service['image_url'] != null &&
-                      service['image_url'].toString().isNotEmpty) {
-                    imageUrls.add(service['image_url']);
-                  }
+                if (service is Map &&
+                    service['image_url'] != null &&
+                    service['image_url'].isNotEmpty) {
+                  imageUrls.add(service['image_url']);
                 }
               }
-
               if (imageUrls.isEmpty) {
                 imageUrls.add(
                     'https://via.placeholder.com/400x200/CCCCCC/FFFFFF?text=No+Image');
@@ -101,7 +88,7 @@ class VendorListPage extends StatelessWidget {
                         builder: (_) => VendorDetailsPage(
                           vendorId: vendorId,
                           vendorData: vendorData,
-                          preSelectedCategory: categoryName,
+                          preSelectedCategory: categoryName, // Pass the category here
                         ),
                       ),
                     );
@@ -109,7 +96,6 @@ class VendorListPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Swipeable image gallery
                       SizedBox(
                         height: 200,
                         child: PageView.builder(
