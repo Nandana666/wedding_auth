@@ -20,9 +20,11 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   late TextEditingController _nameController;
   late TextEditingController _locationController;
   late TextEditingController _descriptionController;
+  // New controllers for phone and address
+  late TextEditingController _phoneController;
+  late TextEditingController _addressController;
 
   // --- MAIN PROFILE STATE ---
-  // Changed from String? to Set<String> for multiple selections
   Set<String> _selectedCategories = {};
   final List<String> _categories = [
     'Makeup',
@@ -51,6 +53,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     _nameController = TextEditingController();
     _locationController = TextEditingController();
     _descriptionController = TextEditingController();
+    _phoneController = TextEditingController();
+    _addressController = TextEditingController();
     _loadVendorData();
   }
 
@@ -59,6 +63,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     _nameController.dispose();
     _locationController.dispose();
     _descriptionController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -76,14 +82,14 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
             _nameController.text = data['name'] ?? '';
             _locationController.text = data['location'] ?? '';
             _descriptionController.text = data['description'] ?? '';
+            _phoneController.text = data['phone'] ?? '';
+            _addressController.text = data['address'] ?? '';
             _networkCompanyLogoUrl = data['company_logo'];
 
-            // Handle loading multiple categories
             final categoryFromServer = data['categories'];
             if (categoryFromServer is List) {
               _selectedCategories = Set<String>.from(categoryFromServer);
             } else if (categoryFromServer is String) {
-              // Backward compatibility for old single-select data
               _selectedCategories = {categoryFromServer};
             }
 
@@ -146,7 +152,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'price': '',
         'image_url': '',
         'image_file': null,
-        'category': null, // Added category field
+        'category': null,
       });
       _serviceFormKeys.add(GlobalKey<FormState>());
     });
@@ -160,7 +166,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 
   Future<void> _saveChanges() async {
-    // Check form validation and ensure at least one category is selected
     if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -219,7 +224,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
           'description': service['description'],
           'price': service['price'],
           'image_url': imageUrl ?? '',
-          'category': service['category'], // Saved category
+          'category': service['category'],
         });
       }
 
@@ -227,7 +232,9 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'name': _nameController.text.trim(),
         'location': _locationController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'categories': _selectedCategories.toList(), // Save the Set as a List
+        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim(),
+        'categories': _selectedCategories.toList(),
         'company_logo': logoUrlToSave ?? '',
         'services': servicesToSave,
         'status': 'pending_approval',
@@ -318,7 +325,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                           v!.isEmpty ? 'Please enter your business name' : null,
                     ),
                     const SizedBox(height: 20),
-                    // Replaced DropdownButtonFormField with Checkbox list
                     const Text(
                       'Service Categories',
                       style: TextStyle(
@@ -344,7 +350,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         dense: true,
                       );
                     }).toList(),
-                    // Validation message for categories
                     if (_selectedCategories.isEmpty && !_isSaving)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -362,6 +367,24 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       ),
                       validator: (v) =>
                           v!.isEmpty ? 'Please enter your location' : null,
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _addressController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Address',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -412,7 +435,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       return ServiceForm(
                         key: _serviceFormKeys[index],
                         service: service,
-                        categories: _categories, // Pass categories list
+                        categories: _categories,
                         onImagePick: (File? image) => setState(
                           () => _services[index]['image_file'] = image,
                         ),
@@ -467,7 +490,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 }
 
-// The ServiceForm widget now includes a dropdown for category selection
+// The ServiceForm widget is unchanged as the new fields are in the main form.
 class ServiceForm extends StatefulWidget {
   final Map<String, dynamic> service;
   final Function(File?) onImagePick;
@@ -596,7 +619,6 @@ class _ServiceFormState extends State<ServiceForm> {
                 ),
               ),
               const SizedBox(height: 16),
-              // New DropdownButtonFormField for service category
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
                   labelText: 'Service Category',
