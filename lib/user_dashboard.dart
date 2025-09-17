@@ -41,13 +41,13 @@ class UserDashboard extends StatelessWidget {
 
           return CustomScrollView(
             slivers: [
-              // --- Profile Header with Edit Icon ---
               _buildProfileHeader(context, userData),
 
-              // --- Main Content List ---
               SliverList(
                 delegate: SliverChildListDelegate([
                   const SizedBox(height: 20),
+
+                  // --- Shortlisted Vendors Section ---
                   _buildSectionHeader('My Shortlisted Vendors'),
                   const SizedBox(height: 10),
                   shortlistedVendorIds.isEmpty
@@ -55,10 +55,19 @@ class UserDashboard extends StatelessWidget {
                       : _buildShortlistedVendorsList(shortlistedVendorIds),
 
                   const SizedBox(height: 20),
+
+                  // --- Booking History Section ---
+                  _buildSectionHeader('My Bookings / History'),
+                  const SizedBox(height: 10),
+                  _buildBookingHistory(currentUser.uid),
+
+                  const SizedBox(height: 20),
+
+                  // --- Account Section ---
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
 
-                  // Inbox Button
+                  // Inbox
                   _buildMenuItem(
                     context: context,
                     icon: Icons.inbox_outlined,
@@ -72,7 +81,7 @@ class UserDashboard extends StatelessWidget {
                     },
                   ),
 
-                  // Logout Button
+                  // Logout
                   _buildMenuItem(
                     context: context,
                     icon: Icons.logout,
@@ -97,18 +106,16 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // --- Helper Widgets for the design ---
+  // ------------------ Helper Widgets ------------------
 
   Widget _buildProfileHeader(
-    BuildContext context,
-    Map<String, dynamic> userData,
-  ) {
+      BuildContext context, Map<String, dynamic> userData) {
     final String name = userData['name'] ?? 'User';
     final String email = userData['email'] ?? 'No email';
     return SliverAppBar(
       expandedHeight: 220.0,
       pinned: true,
-      backgroundColor: const Color(0xFFF472B6), // Pinkish part of the gradient
+      backgroundColor: const Color(0xFFF472B6),
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: const BoxDecoration(
@@ -120,10 +127,7 @@ class UserDashboard extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 16.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,16 +232,12 @@ class UserDashboard extends StatelessWidget {
       itemBuilder: (context, index) {
         final vendorId = vendorIds[index];
         return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance
-              .collection('vendors')
-              .doc(vendorId)
-              .get(),
+          future: FirebaseFirestore.instance.collection('vendors').doc(vendorId).get(),
           builder: (context, vendorSnapshot) {
             if (!vendorSnapshot.hasData || !vendorSnapshot.data!.exists) {
               return const SizedBox.shrink();
             }
-            final vendorData =
-                vendorSnapshot.data!.data() as Map<String, dynamic>;
+            final vendorData = vendorSnapshot.data!.data() as Map<String, dynamic>;
             return _buildMenuItem(
               context: context,
               icon: Icons.storefront,
@@ -257,6 +257,75 @@ class UserDashboard extends StatelessWidget {
         );
       },
     );
+  }
+
+  Widget _buildBookingHistory(String userId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('bookings')
+          .orderBy('eventDate', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text(
+                "No bookings yet.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        }
+
+        final bookings = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: bookings.length,
+          itemBuilder: (context, index) {
+            final booking = bookings[index].data() as Map<String, dynamic>;
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 2,
+              child: ListTile(
+                title: Text(
+                  booking['vendorName'] ?? 'Vendor',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Category: ${booking['vendorCategory'] ?? 'N/A'}"),
+                    Text("Booking Date: ${_formatDate(booking['bookingDate'])}"),
+                    Text("Event Date: ${_formatDate(booking['eventDate'])}"),
+                    Text("Advance Paid: ₹${booking['advancePayment'] ?? 0}"),
+                    Text("Payment Status: ${booking['paymentStatus'] ?? 'N/A'}"),
+                    Text("Event Status: ${booking['eventStatus'] ?? 'N/A'}"),
+                  ],
+                ),
+                trailing: const Icon(Icons.event, color: Colors.blue),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return "N/A";
+    final date = timestamp.toDate();
+    return "${date.day}/${date.month}/${date.year}";
   }
 
   Widget _buildMenuItem({
