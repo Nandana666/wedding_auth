@@ -1,12 +1,34 @@
 // lib/admin_dashboard.dart
 
 import 'package:flutter/material.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_service.dart';
 import 'admin_tabs/vendors_tab.dart';
 import 'admin_tabs/users_tab.dart';
 import 'admin_tabs/reviews_tab.dart';
 import 'admin_tabs/statistics_tab.dart';
+import 'admin_tabs/history_page.dart'; // Import the History tab
 import 'login_screen.dart'; // Assuming login screen is the root for logout
+
+enum DateFilter { today, thisWeek, thisMonth, all }
+
+DateTimeRange getDateRange(DateFilter filter) {
+  final now = DateTime.now();
+  switch (filter) {
+    case DateFilter.today:
+      return DateTimeRange(
+          start: DateTime(now.year, now.month, now.day), end: now);
+    case DateFilter.thisWeek:
+      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+      return DateTimeRange(
+          start: DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+          end: now);
+    case DateFilter.thisMonth:
+      return DateTimeRange(start: DateTime(now.year, now.month, 1), end: now);
+    case DateFilter.all:
+      return DateTimeRange(start: DateTime(2000), end: now);
+  }
+}
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -22,36 +44,37 @@ class _AdminDashboardState extends State<AdminDashboard> {
   static final List<Widget> _widgetOptions = <Widget>[
     const UsersTab(),
     const VendorsTab(),
-    ReviewsTab(), // Cannot be const
-    StatisticsTab(), // Cannot be const
+    ReviewsTab(),
+    StatisticsTab(),
+    const HistoryPage(), // History Tab
   ];
 
-  // A list of titles corresponding to each tab
+  // Titles for each tab
   static const List<String> _widgetTitles = <String>[
     'User Management',
     'Vendor Management',
     'Reviews',
     'Statistics',
+    'History', // History tab title
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100, // Clean background
+      backgroundColor: Colors.grey.shade100,
       body: Column(
         children: [
           // --- Custom Gradient Header ---
           Container(
             padding: EdgeInsets.only(
-              top:
-                  MediaQuery.of(context).padding.top + 16, // Handles status bar
+              top: MediaQuery.of(context).padding.top + 16,
               bottom: 16,
               left: 16,
               right: 16,
             ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF6A11CB), Color(0xFF2575FC)], // Purple-Blue
+                colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -71,7 +94,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _widgetTitles.elementAt(_bottomNavIndex), // Dynamic title
+                  _widgetTitles.elementAt(_bottomNavIndex),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -104,7 +127,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
-                // ClipRRect ensures the child widget conforms to the card's rounded corners
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: _widgetOptions.elementAt(_bottomNavIndex),
@@ -116,13 +138,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _bottomNavIndex,
-        onTap: (index) {
-          setState(() {
-            _bottomNavIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _bottomNavIndex = index),
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF6A11CB), // Active tab color
+        selectedItemColor: const Color(0xFF6A11CB),
         unselectedItemColor: Colors.grey.shade600,
         backgroundColor: Colors.white,
         elevation: 10.0,
@@ -146,6 +164,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: Icon(Icons.bar_chart_outlined),
             activeIcon: Icon(Icons.bar_chart),
             label: 'Statistics',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history_outlined),
+            activeIcon: Icon(Icons.history),
+            label: 'History',
           ),
         ],
       ),
