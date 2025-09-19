@@ -15,6 +15,7 @@ class UserDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
+      // This is a fallback, AuthGate should prevent this screen from being reached
       return const Scaffold(body: Center(child: Text("Not logged in.")));
     }
 
@@ -90,6 +91,7 @@ class UserDashboard extends StatelessWidget {
                     onTap: () async {
                       await AuthService().signOut();
                       if (!context.mounted) return;
+                      // Navigate back to the root, which should be handled by AuthGate
                       Navigator.pushNamedAndRemoveUntil(
                         context,
                         '/',
@@ -127,7 +129,8 @@ class UserDashboard extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,12 +235,16 @@ class UserDashboard extends StatelessWidget {
       itemBuilder: (context, index) {
         final vendorId = vendorIds[index];
         return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance.collection('vendors').doc(vendorId).get(),
+          future: FirebaseFirestore.instance
+              .collection('vendors')
+              .doc(vendorId)
+              .get(),
           builder: (context, vendorSnapshot) {
             if (!vendorSnapshot.hasData || !vendorSnapshot.data!.exists) {
               return const SizedBox.shrink();
             }
-            final vendorData = vendorSnapshot.data!.data() as Map<String, dynamic>;
+            final vendorData =
+                vendorSnapshot.data!.data() as Map<String, dynamic>;
             return _buildMenuItem(
               context: context,
               icon: Icons.storefront,
@@ -274,11 +281,12 @@ class UserDashboard extends StatelessWidget {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: const Padding(
               padding: EdgeInsets.all(24.0),
               child: Text(
-                "No bookings yet.",
+                "You haven't booked any vendors yet.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
               ),
@@ -295,7 +303,8 @@ class UserDashboard extends StatelessWidget {
             final booking = bookings[index].data() as Map<String, dynamic>;
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               elevation: 2,
               child: ListTile(
                 title: Text(
@@ -309,7 +318,8 @@ class UserDashboard extends StatelessWidget {
                     Text("Booking Date: ${_formatDate(booking['bookingDate'])}"),
                     Text("Event Date: ${_formatDate(booking['eventDate'])}"),
                     Text("Advance Paid: ₹${booking['advancePayment'] ?? 0}"),
-                    Text("Payment Status: ${booking['paymentStatus'] ?? 'N/A'}"),
+                    Text(
+                        "Payment Status: ${booking['paymentStatus'] ?? 'N/A'}"),
                     Text("Event Status: ${booking['eventStatus'] ?? 'N/A'}"),
                   ],
                 ),
@@ -351,7 +361,8 @@ class UserDashboard extends StatelessWidget {
           ),
           child: Icon(icon, color: color),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title:
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: subtitle != null ? Text(subtitle) : null,
         trailing: onTap != null
             ? const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey)

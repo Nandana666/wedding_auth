@@ -52,6 +52,7 @@ class VendorDashboard extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
+            // This case handles a new vendor who has an auth record but no firestore doc yet
             return _buildIncompleteProfileView(context);
           }
 
@@ -65,7 +66,7 @@ class VendorDashboard extends StatelessWidget {
               return _buildDashboardView(context, vendorData, isPending: true);
             case 'approved':
               return _buildDashboardView(context, vendorData, isPending: false);
-            default:
+            default: // Catches 'declined' and any other unexpected status
               return _buildDeclinedView(context);
           }
         },
@@ -119,12 +120,15 @@ class VendorDashboard extends StatelessWidget {
 
   // --- SHARED WIDGET FOR 'approved' & 'pending_approval' STATUSES ---
   Widget _buildDashboardView(
-      BuildContext context, Map<String, dynamic> vendorData,
-      {required bool isPending}) {
+    BuildContext context,
+    Map<String, dynamic> vendorData, {
+    required bool isPending,
+  }) {
     final String companyLogo = vendorData['company_logo'] ?? '';
     final String companyName = vendorData['name'] ?? 'Vendor';
     final String location = vendorData['location'] ?? 'Unknown Location';
     final List<dynamic> services = vendorData['services'] ?? [];
+    final vendorId = FirebaseAuth.instance.currentUser!.uid;
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
@@ -242,6 +246,15 @@ class VendorDashboard extends StatelessWidget {
           ),
         ),
 
+        // --- NEW: CLIENT BOOKINGS SECTION ---
+        const SizedBox(height: 24),
+        const Text(
+          'Client Bookings',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        _buildClientBookings(vendorId), // <-- NEW WIDGET CALL
+
         const SizedBox(height: 24),
         const Text(
           'My Services',
@@ -261,6 +274,82 @@ class VendorDashboard extends StatelessWidget {
           return _buildServiceCard(service);
         }),
       ],
+    );
+  }
+
+  // --- NEW: WIDGET TO DISPLAY BOOKINGS FOR THE VENDOR ---
+  Widget _buildClientBookings(String vendorId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('vendors')
+          .doc(vendorId)
+          .collection('bookings')
+          .orderBy('eventDate', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(child: Text('Could not load bookings.'));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(
+                child: Text(
+                  "You have no upcoming bookings.",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final bookings = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: bookings.length,
+          itemBuilder: (context, index) {
+            final booking = bookings[index].data() as Map<String, dynamic>;
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF2575FC).withAlpha(40),
+                  child: Text(
+                    (booking['userName'] ?? 'U')[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2575FC),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  booking['userName'] ?? 'Client',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Event Date: ${_formatDate(booking['eventDate'])}"),
+                    Text(
+                      "Advance Received: ₹${booking['advancePayment'] ?? 0}",
+                    ),
+                    Text("Status: ${booking['eventStatus'] ?? 'N/A'}"),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -331,7 +420,6 @@ class VendorDashboard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // FIX: Replaced single image with a PageView for horizontal scrolling
           if (imageUrls.isNotEmpty)
             SizedBox(
               height: 200, // Fixed height for the image carousel
@@ -395,5 +483,12 @@ class VendorDashboard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // --- NEW: Helper to format dates (can be shared) ---
+  String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return "N/A";
+    final date = timestamp.toDate();
+    return "${date.day}/${date.month}/${date.year}";
   }
 }

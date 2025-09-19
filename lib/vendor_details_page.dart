@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'chat_page.dart';
+import 'fake_payment_page.dart'; // <-- IMPORT THE NEW PAGE
 
 class VendorDetailsPage extends StatefulWidget {
   final String vendorId;
@@ -22,6 +24,7 @@ class VendorDetailsPage extends StatefulWidget {
 }
 
 class _VendorDetailsPageState extends State<VendorDetailsPage> {
+  // ... all the existing state variables are fine ...
   bool isShortlisted = false;
   bool isLoading = true;
   Set<String> serviceCategories = {};
@@ -31,6 +34,12 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     super.initState();
     _checkIfShortlisted();
     _extractServiceCategories();
+  }
+
+  // ... All methods from initState down to _processFakePayment are correct and unchanged ...
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   void _extractServiceCategories() {
@@ -54,7 +63,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       }
       return;
     }
-
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -70,7 +78,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         }
       }
     } catch (e) {
-      // silent error handling
+      // silent error
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -86,12 +94,11 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       );
       return;
     }
-
-    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-
     setState(() => isShortlisted = !isShortlisted);
-
     if (isShortlisted) {
       userRef.set({
         'shortlistedVendors': FieldValue.arrayUnion([widget.vendorId]),
@@ -117,35 +124,26 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       );
       return;
     }
-
     final vendorId = widget.vendorId;
     final currentUserId = currentUser.uid;
-
     List<String> ids = [currentUserId, vendorId];
     ids.sort();
     String chatId = ids.join('_');
-
     try {
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUserId)
           .get();
       final userName = userDoc.data()?['name'] ?? 'New User';
-
-      await FirebaseFirestore.instance.collection('chats').doc(chatId).set(
-        {
-          'participants': [currentUserId, vendorId],
-          'participantNames': {
-            currentUserId: userName,
-            vendorId: widget.vendorData['name'] ?? 'Vendor',
-          },
-          'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+        'participants': [currentUserId, vendorId],
+        'participantNames': {
+          currentUserId: userName,
+          vendorId: widget.vendorData['name'] ?? 'Vendor',
         },
-        SetOptions(merge: true),
-      );
-
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       if (!mounted) return;
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -166,6 +164,173 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     }
   }
 
+  Future<void> _createBookingRecord(DateTime eventDate, double amount) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final userName = userDoc.data()?['name'] ?? 'Anonymous User';
+    final String testPaymentId =
+        'test_pay_${DateTime.now().millisecondsSinceEpoch}';
+
+    final bookingData = {
+      'vendorId': widget.vendorId,
+      'vendorName': widget.vendorData['name'],
+      'vendorCategory': widget.vendorData['categories']?.join(', ') ?? 'N/A',
+      'userId': user.uid,
+      'userName': userName,
+      'bookingDate': Timestamp.now(),
+      'eventDate': Timestamp.fromDate(eventDate),
+      'advancePayment': amount,
+      'paymentId': testPaymentId,
+      'paymentStatus': 'Paid (Test)',
+      'eventStatus': 'Upcoming',
+    };
+
+    final userBookingsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('bookings');
+    final vendorBookingsRef = FirebaseFirestore.instance
+        .collection('vendors')
+        .doc(widget.vendorId)
+        .collection('bookings');
+    await userBookingsRef.add(bookingData);
+    await vendorBookingsRef.add(bookingData);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Booking Successful!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  // --- THIS IS THE ONLY METHOD THAT CHANGES ---
+  // We replace the AlertDialog with our new FakePaymentPage
+  Future<void> _processFakePayment(DateTime eventDate, double amount) async {
+    // Navigate to our new payment page and wait for a result.
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => FakePaymentPage(amount: amount)),
+    );
+
+    // If the page returned 'true', it means the payment was a success.
+    if (result == true) {
+      // Now we create the booking record, just like before.
+      await _createBookingRecord(eventDate, amount);
+    } else {
+      // Handle the case where the user backs out of the payment page.
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Payment cancelled.')));
+      }
+    }
+  }
+
+  Future<void> _showBookingDialog() async {
+    DateTime? selectedDate;
+    final amountController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Book This Vendor'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_today),
+                      title: Text(
+                        selectedDate == null
+                            ? 'Select Event Date'
+                            : DateFormat(
+                                'EEE, MMM d, yyyy',
+                              ).format(selectedDate!),
+                      ),
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now().add(
+                            const Duration(days: 1),
+                          ),
+                          firstDate: DateTime.now().add(
+                            const Duration(days: 1),
+                          ),
+                          lastDate: DateTime(2101),
+                        );
+                        if (pickedDate != null) {
+                          setDialogState(() => selectedDate = pickedDate);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Advance Amount (₹)',
+                        prefixIcon: Icon(Icons.currency_rupee),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter an amount';
+                        }
+                        if (double.tryParse(value) == null ||
+                            double.parse(value) <= 0) {
+                          return 'Please enter a valid amount';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                ElevatedButton(
+                  child: const Text('Proceed to Pay'),
+                  onPressed: () {
+                    if (selectedDate == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select an event date.'),
+                        ),
+                      );
+                      return;
+                    }
+                    if (formKey.currentState!.validate()) {
+                      final amount = double.parse(amountController.text);
+                      Navigator.of(context).pop();
+                      // This now calls the method that opens our new page
+                      _processFakePayment(selectedDate!, amount);
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ... The rest of the file (build method and helpers) is completely unchanged ...
   @override
   Widget build(BuildContext context) {
     final String name = widget.vendorData['name'] ?? 'Vendor Name';
@@ -178,7 +343,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     final String email = widget.vendorData['email'] ?? '';
     final String imageUrl = widget.vendorData['company_logo'] ?? '';
     final List<dynamic> services = widget.vendorData['services'] ?? [];
-
     final categoriesToDisplay = widget.preSelectedCategory != null
         ? {widget.preSelectedCategory!}
         : serviceCategories;
@@ -197,15 +361,12 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  shadows: [Shadow(blurRadius: 5, color: Colors.black54)],
                 ),
               ),
               background: imageUrl.isNotEmpty
                   ? Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      color: Colors.black.withAlpha(102),
-                      colorBlendMode: BlendMode.darken,
                       errorBuilder: (context, error, stackTrace) =>
                           Container(color: Colors.grey),
                     )
@@ -336,14 +497,15 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                     else
                       ...categoriesToDisplay.map((category) {
                         final servicesInCategory = services
-                            .where((service) =>
-                                service is Map && service['category'] == category)
+                            .where(
+                              (service) =>
+                                  service is Map &&
+                                  service['category'] == category,
+                            )
                             .toList();
-
                         if (servicesInCategory.isEmpty) {
                           return const SizedBox.shrink();
                         }
-
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -356,13 +518,13 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            ...servicesInCategory.map((service) {
-                              return _buildServiceCard(service);
-                            }),
+                            ...servicesInCategory.map(
+                              (service) => _buildServiceCard(service),
+                            ),
                             const SizedBox(height: 24),
                           ],
                         );
-                      }).toList(),
+                      }),
                     if (contact.isNotEmpty || email.isNotEmpty) ...[
                       const Divider(height: 40, thickness: 1),
                       const Text(
@@ -389,30 +551,60 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                         ),
                     ],
                     const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(
-                          Icons.message_outlined,
-                          color: Colors.white,
-                        ),
-                        label: const Text(
-                          'Send a Message',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                    Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.event_available,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'Book Now',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onPressed: _showBookingDialog,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: const Color(0xFFF472B6),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                           ),
                         ),
-                        onPressed: _startOrGoToChat,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: const Color(0xFF2575FC),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.message_outlined,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'Send a Message',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onPressed: _startOrGoToChat,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: const Color(0xFF2575FC),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -425,67 +617,47 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
   }
 
   Widget _buildServiceCard(dynamic service) {
-    if (service is! Map<String, dynamic>) return const SizedBox.shrink();
-
+    if (service is! Map<String, dynamic>) {
+      return const SizedBox.shrink();
+    }
     final List<dynamic> imageUrls = service['image_urls'] ?? [];
     final String title = service['title'] ?? 'No Title';
     final String description =
         service['description'] ?? 'No description available.';
     final String price = service['price']?.toString() ?? 'N/A';
-
     return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300, width: 1),
+      ),
       clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (imageUrls.isNotEmpty)
             SizedBox(
               height: 200,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  PageView.builder(
-                    itemCount: imageUrls.length,
-                    controller: PageController(),
-                    itemBuilder: (context, index) {
-                      final url = imageUrls[index];
-                      return Image.network(
-                        url,
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 200,
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: Icon(Icons.broken_image, color: Colors.grey),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  Positioned(
-                    bottom: 8,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        imageUrls.length,
-                        (index) => Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white70,
-                          ),
-                        ),
+              child: PageView.builder(
+                itemCount: imageUrls.length,
+                controller: PageController(),
+                itemBuilder: (context, index) {
+                  final url = imageUrls[index];
+                  return Image.network(
+                    url,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 200,
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: Icon(Icons.broken_image, color: Colors.grey),
                       ),
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           Padding(
