@@ -15,7 +15,6 @@ class UserDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      // This is a fallback, AuthGate should prevent this screen from being reached
       return const Scaffold(body: Center(child: Text("Not logged in.")));
     }
 
@@ -43,32 +42,24 @@ class UserDashboard extends StatelessWidget {
           return CustomScrollView(
             slivers: [
               _buildProfileHeader(context, userData),
-
               SliverList(
                 delegate: SliverChildListDelegate([
                   const SizedBox(height: 20),
-
-                  // --- Shortlisted Vendors Section ---
                   _buildSectionHeader('My Shortlisted Vendors'),
                   const SizedBox(height: 10),
                   shortlistedVendorIds.isEmpty
                       ? _buildEmptyShortlistCard()
                       : _buildShortlistedVendorsList(shortlistedVendorIds),
-
                   const SizedBox(height: 20),
-
-                  // --- Booking History Section ---
                   _buildSectionHeader('My Bookings / History'),
                   const SizedBox(height: 10),
-                  _buildBookingHistory(currentUser.uid),
-
+                  _buildBookingHistory(
+                    context,
+                    currentUser.uid,
+                  ), // Pass context
                   const SizedBox(height: 20),
-
-                  // --- Account Section ---
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
-
-                  // Inbox
                   _buildMenuItem(
                     context: context,
                     icon: Icons.inbox_outlined,
@@ -81,8 +72,6 @@ class UserDashboard extends StatelessWidget {
                       );
                     },
                   ),
-
-                  // Logout
                   _buildMenuItem(
                     context: context,
                     icon: Icons.logout,
@@ -91,7 +80,6 @@ class UserDashboard extends StatelessWidget {
                     onTap: () async {
                       await AuthService().signOut();
                       if (!context.mounted) return;
-                      // Navigate back to the root, which should be handled by AuthGate
                       Navigator.pushNamedAndRemoveUntil(
                         context,
                         '/',
@@ -108,10 +96,170 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // ------------------ Helper Widgets ------------------
+  Widget _buildBookingHistory(BuildContext context, String userId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('bookings')
+          .orderBy('eventDate', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text(
+                "No bookings yet.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        }
 
-  Widget _buildProfileHeader(
-      BuildContext context, Map<String, dynamic> userData) {
+        final bookings = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: bookings.length,
+          itemBuilder: (context, index) {
+            final bookingDoc = bookings[index];
+            final booking = bookingDoc.data() as Map<String, dynamic>;
+
+            final eventDate = (booking['eventDate'] as Timestamp?)?.toDate();
+            final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
+            final bool isEventOver =
+                eventDate != null && eventDate.isBefore(DateTime.now());
+
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      booking['vendorName'] ?? 'Vendor',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow(
+                      "Category",
+                      booking['vendorCategory'] ?? 'N/A',
+                    ),
+                    _buildDetailRow(
+                      "Event Date",
+                      _formatDate(booking['eventDate']),
+                    ),
+                    _buildDetailRow(
+                      "Advance Paid",
+                      "₹${booking['advancePayment'] ?? 0}",
+                    ),
+
+                    const Divider(height: 20),
+
+                    if (isEventOver && !hasBeenReviewed)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            _showReviewDialog(
+                              context,
+                              bookingId: bookingDoc.id,
+                              vendorId: booking['vendorId'],
+                              vendorName: booking['vendorName'],
+                            );
+                          },
+                          icon: const Icon(Icons.rate_review_outlined),
+                          label: const Text('Add a Review'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                          ),
+                        ),
+                      )
+                    else if (hasBeenReviewed)
+                      const Center(
+                        child: Text(
+                          "✔ Reviewed",
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                    else
+                      const Center(
+                        child: Text(
+                          "Review available after event",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- THIS IS THE FIXED WIDGET ---
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start, // Align items to the top
+        children: [
+          Text("$label:", style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(width: 8), // Add some space between label and value
+          // The Expanded widget is the key to the fix.
+          // It takes up all remaining horizontal space and allows its child to wrap.
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              textAlign: TextAlign.right, // Aligns text to the right
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReviewDialog(
+    BuildContext context, {
+    required String bookingId,
+    required String vendorId,
+    required String vendorName,
+  }) {
+    showDialog(
+      context: context,
+      builder: (_) => ReviewDialog(
+        bookingId: bookingId,
+        vendorId: vendorId,
+        vendorName: vendorName,
+      ),
+    );
+  }
+
+  // ... (The rest of the file is unchanged) ...
+  _buildProfileHeader(BuildContext context, Map<String, dynamic> userData) {
     final String name = userData['name'] ?? 'User';
     final String email = userData['email'] ?? 'No email';
     return SliverAppBar(
@@ -129,8 +277,10 @@ class UserDashboard extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 16.0,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,72 +416,6 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildBookingHistory(String userId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('bookings')
-          .orderBy('eventDate', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: const Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                "You haven't booked any vendors yet.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        }
-
-        final bookings = snapshot.data!.docs;
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: bookings.length,
-          itemBuilder: (context, index) {
-            final booking = bookings[index].data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              elevation: 2,
-              child: ListTile(
-                title: Text(
-                  booking['vendorName'] ?? 'Vendor',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Category: ${booking['vendorCategory'] ?? 'N/A'}"),
-                    Text("Booking Date: ${_formatDate(booking['bookingDate'])}"),
-                    Text("Event Date: ${_formatDate(booking['eventDate'])}"),
-                    Text("Advance Paid: ₹${booking['advancePayment'] ?? 0}"),
-                    Text(
-                        "Payment Status: ${booking['paymentStatus'] ?? 'N/A'}"),
-                    Text("Event Status: ${booking['eventStatus'] ?? 'N/A'}"),
-                  ],
-                ),
-                trailing: const Icon(Icons.event, color: Colors.blue),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "N/A";
     final date = timestamp.toDate();
@@ -361,13 +445,161 @@ class UserDashboard extends StatelessWidget {
           ),
           child: Icon(icon, color: color),
         ),
-        title:
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: subtitle != null ? Text(subtitle) : null,
         trailing: onTap != null
             ? const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey)
             : null,
       ),
+    );
+  }
+}
+
+// The ReviewDialog widget remains the same and is correct
+class ReviewDialog extends StatefulWidget {
+  final String bookingId;
+  final String vendorId;
+  final String vendorName;
+
+  const ReviewDialog({
+    super.key,
+    required this.bookingId,
+    required this.vendorId,
+    required this.vendorName,
+  });
+
+  @override
+  State<ReviewDialog> createState() => _ReviewDialogState();
+}
+
+class _ReviewDialogState extends State<ReviewDialog> {
+  double _rating = 0;
+  final _commentController = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _submitReview() async {
+    if (_rating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a star rating.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final userName = userDoc.data()?['name'] ?? 'Anonymous';
+
+      final reviewData = {
+        'userId': user.uid,
+        'userName': userName,
+        'vendorId': widget.vendorId,
+        'vendorName': widget.vendorName,
+        'rating': _rating,
+        'comment': _commentController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      final batch = FirebaseFirestore.instance.batch();
+      final reviewRef = FirebaseFirestore.instance.collection('reviews').doc();
+      batch.set(reviewRef, reviewData);
+      final userBookingRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('bookings')
+          .doc(widget.bookingId);
+      batch.update(userBookingRef, {'hasBeenReviewed': true});
+
+      await batch.commit();
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thank you for your review!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit review: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Review ${widget.vendorName}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Tap a star to rate:'),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                return IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _rating = index + 1.0;
+                    });
+                  },
+                  icon: Icon(
+                    index < _rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: 35,
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Add a comment (optional)',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _submitReview,
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Submit'),
+        ),
+      ],
     );
   }
 }
