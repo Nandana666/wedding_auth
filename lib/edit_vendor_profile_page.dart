@@ -7,10 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
 
-// lib/edit_vendor_profile_page.dart
-
-
-
 class EditVendorProfilePage extends StatefulWidget {
   const EditVendorProfilePage({super.key});
 
@@ -27,6 +23,14 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   late TextEditingController _addressController;
 
   Set<String> _selectedCategories = {};
+  final Map<String, List<String>> _subcategories = {
+    'Makeup': ['Bridal', 'Party', 'Casual'],
+    'Catering': ['Vegetarian', 'Non-Vegetarian', 'Desserts'],
+    'Photography': ['Wedding', 'Pre-wedding', 'Events'],
+    'Decor': ['Indoor', 'Outdoor', 'Theme'],
+    'Venues': ['Hall', 'Garden', 'Beach'],
+    'Packages': ['Silver', 'Gold', 'Platinum'],
+  };
   final List<String> _categories = [
     'Makeup',
     'Catering',
@@ -35,6 +39,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     'Venues',
     'Packages',
   ];
+
   File? _companyLogoFile;
   String? _networkCompanyLogoUrl;
 
@@ -64,7 +69,6 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
     _descriptionController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    // Also dispose service controllers if they were inside this state
     super.dispose();
   }
 
@@ -95,15 +99,11 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
 
             _services = List<Map<String, dynamic>>.from(data['services'] ?? []);
             for (var service in _services) {
-              service['image_urls'] = List<String>.from(
-                service['image_urls'] ?? [],
-              );
+              service['image_urls'] = List<String>.from(service['image_urls'] ?? []);
               service['image_files'] = <File>[];
             }
-            _serviceFormKeys = List.generate(
-              _services.length,
-              (index) => GlobalKey<FormState>(),
-            );
+            _serviceFormKeys =
+                List.generate(_services.length, (index) => GlobalKey<FormState>());
           });
         }
       } catch (e) {
@@ -117,28 +117,18 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
   }
 
   Future<void> _pickCompanyLogo() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
+    final XFile? pickedFile =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (pickedFile != null) {
       setState(() => _companyLogoFile = File(pickedFile.path));
     }
   }
 
   Future<String?> _uploadImage(File image) async {
-    final cloudinary = CloudinaryPublic(
-      'dc9kib0cr', // <-- replace with your cloud name
-      'ml_default', // <-- replace with your preset
-      cache: false,
-    );
+    final cloudinary = CloudinaryPublic('dc9kib0cr', 'ml_default', cache: false);
     try {
-      CloudinaryResponse response = await cloudinary.uploadFile(
-        CloudinaryFile.fromFile(
-          image.path,
-          resourceType: CloudinaryResourceType.Image,
-        ),
-      );
+      CloudinaryResponse response =
+          await cloudinary.uploadFile(CloudinaryFile.fromFile(image.path, resourceType: CloudinaryResourceType.Image));
       return response.secureUrl;
     } catch (e) {
       return null;
@@ -151,9 +141,10 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
         'title': '',
         'description': '',
         'price': '',
+        'category': null,
+        'subcategory': null,
         'image_urls': [],
         'image_files': [],
-        'category': null,
       });
       _serviceFormKeys.add(GlobalKey<FormState>());
     });
@@ -168,23 +159,19 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
 
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all required details.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Please fill all required details.'),
+        backgroundColor: Colors.red,
+      ));
       return;
     }
 
     for (var key in _serviceFormKeys) {
       if (!key.currentState!.validate()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please fill all required service details.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please fill all required service details.'),
+          backgroundColor: Colors.red,
+        ));
         return;
       }
     }
@@ -203,28 +190,24 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
       String? logoUrlToSave = _networkCompanyLogoUrl;
       if (_companyLogoFile != null) {
         logoUrlToSave = await _uploadImage(_companyLogoFile!);
-        if (logoUrlToSave == null) {
-          throw Exception("Company logo upload failed.");
-        }
+        if (logoUrlToSave == null) throw Exception("Company logo upload failed.");
       }
 
       List<Map<String, dynamic>> servicesToSave = [];
       for (var service in _services) {
         List<String> uploadedUrls = [];
-
         for (File file in (service['image_files'] as List<File>)) {
           final url = await _uploadImage(file);
           if (url != null) uploadedUrls.add(url);
         }
-
         uploadedUrls.addAll(List<String>.from(service['image_urls'] ?? []));
-
         servicesToSave.add({
           'title': service['title'],
           'description': service['description'],
           'price': service['price'],
-          'image_urls': uploadedUrls,
           'category': service['category'],
+          'subcategory': service['subcategory'],
+          'image_urls': uploadedUrls,
         });
       }
 
@@ -241,12 +224,10 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile submitted for admin review!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Profile submitted for admin review!'),
+        backgroundColor: Colors.green,
+      ));
       Navigator.pop(context);
     } catch (e) {
       setState(() => _errorMessage = e.toString());
@@ -277,21 +258,13 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                             backgroundImage: _companyLogoFile != null
                                 ? FileImage(_companyLogoFile!)
                                 : (_networkCompanyLogoUrl != null &&
-                                              _networkCompanyLogoUrl!.isNotEmpty
-                                          ? NetworkImage(
-                                              _networkCompanyLogoUrl!,
-                                            )
-                                          : null)
-                                      as ImageProvider?,
-                            child:
-                                (_companyLogoFile == null &&
+                                        _networkCompanyLogoUrl!.isNotEmpty
+                                    ? NetworkImage(_networkCompanyLogoUrl!)
+                                    : null) as ImageProvider?,
+                            child: (_companyLogoFile == null &&
                                     (_networkCompanyLogoUrl == null ||
                                         _networkCompanyLogoUrl!.isEmpty))
-                                ? Icon(
-                                    Icons.storefront,
-                                    size: 60,
-                                    color: Colors.grey.shade400,
-                                  )
+                                ? Icon(Icons.storefront, size: 60, color: Colors.grey.shade400)
                                 : null,
                           ),
                           Positioned(
@@ -302,11 +275,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                               child: const CircleAvatar(
                                 radius: 20,
                                 backgroundColor: Color(0xFF6A11CB),
-                                child: Icon(
-                                  Icons.edit,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                                child: Icon(Icons.edit, color: Colors.white, size: 20),
                               ),
                             ),
                           ),
@@ -320,19 +289,12 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         labelText: 'Business Name',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) =>
-                          v!.isEmpty ? 'Please enter your business name' : null,
+                      validator: (v) => v!.isEmpty ? 'Please enter your business name' : null,
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Service Categories',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const Text('Service Categories',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
-                    // FIX 1: Removed unnecessary .toList()
                     ..._categories.map((category) {
                       return CheckboxListTile(
                         title: Text(category),
@@ -365,8 +327,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         labelText: 'Location (e.g., Kochi)',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) =>
-                          v!.isEmpty ? 'Please enter your location' : null,
+                      validator: (v) => v!.isEmpty ? 'Please enter your location' : null,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -394,20 +355,14 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 5,
-                      validator: (v) =>
-                          v!.isEmpty ? 'Please enter a description' : null,
+                      validator: (v) => v!.isEmpty ? 'Please enter a description' : null,
                     ),
                     const SizedBox(height: 30),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Your Services',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        const Text('Your Services',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         ElevatedButton.icon(
                           onPressed: _addService,
                           style: ElevatedButton.styleFrom(
@@ -434,34 +389,35 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                         key: _serviceFormKeys[index],
                         service: service,
                         categories: _categories,
+                        subcategoriesMap: _subcategories,
                         onImagePick: (List<File> images) {
                           setState(() {
                             service['image_files'] = images;
                           });
                         },
-                        onTitleChanged: (String title) =>
-                            service['title'] = title,
-                        onDescriptionChanged: (String desc) =>
-                            service['description'] = desc,
-                        onPriceChanged: (String price) =>
-                            service['price'] = price,
-                        onCategoryChanged: (String? category) =>
-                            setState(() => service['category'] = category),
+                        onTitleChanged: (String title) => service['title'] = title,
+                        onDescriptionChanged: (String desc) => service['description'] = desc,
+                        onPriceChanged: (String price) => service['price'] = price,
+                        onCategoryChanged: (String? category) {
+                          setState(() {
+                            service['category'] = category;
+                            service['subcategory'] = null; // reset subcategory
+                          });
+                        },
+                        onSubcategoryChanged: (String? subcat) {
+                          setState(() => service['subcategory'] = subcat);
+                        },
                         onRemove: () => _removeService(index),
                         onNetworkImageRemove: (String imageUrl) {
                           setState(() {
-                            List<String> currentUrls = List<String>.from(
-                              service['image_urls'],
-                            );
+                            List<String> currentUrls = List<String>.from(service['image_urls']);
                             currentUrls.remove(imageUrl);
                             service['image_urls'] = currentUrls;
                           });
                         },
                         onFileImageRemove: (File file) {
                           setState(() {
-                            List<File> currentFiles = List<File>.from(
-                              service['image_files'],
-                            );
+                            List<File> currentFiles = List<File>.from(service['image_files']);
                             currentFiles.remove(file);
                             service['image_files'] = currentFiles;
                           });
@@ -484,10 +440,7 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
                       ),
                       child: _isSaving
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Submit for Review',
-                              style: TextStyle(fontSize: 16),
-                            ),
+                          : const Text('Submit for Review', style: TextStyle(fontSize: 16)),
                     ),
                   ],
                 ),
@@ -501,11 +454,13 @@ class ServiceForm extends StatefulWidget {
   final Map<String, dynamic> service;
   final VoidCallback onRemove;
   final List<String> categories;
+  final Map<String, List<String>> subcategoriesMap;
   final ValueChanged<List<File>> onImagePick;
   final ValueChanged<String> onTitleChanged;
   final ValueChanged<String> onDescriptionChanged;
   final ValueChanged<String> onPriceChanged;
   final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onSubcategoryChanged;
   final ValueChanged<String> onNetworkImageRemove;
   final ValueChanged<File> onFileImageRemove;
 
@@ -514,11 +469,13 @@ class ServiceForm extends StatefulWidget {
     required this.service,
     required this.onRemove,
     required this.categories,
+    required this.subcategoriesMap,
     required this.onImagePick,
     required this.onTitleChanged,
     required this.onDescriptionChanged,
     required this.onPriceChanged,
     required this.onCategoryChanged,
+    required this.onSubcategoryChanged,
     required this.onNetworkImageRemove,
     required this.onFileImageRemove,
   }) : super(key: key);
@@ -533,6 +490,7 @@ class _ServiceFormState extends State<ServiceForm> {
   late TextEditingController _descriptionController;
   late TextEditingController _priceController;
   String? _selectedCategory;
+  String? _selectedSubcategory;
 
   List<File> _currentImageFiles = [];
   List<String> _currentNetworkImageUrls = [];
@@ -541,18 +499,13 @@ class _ServiceFormState extends State<ServiceForm> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.service['title']);
-    _descriptionController = TextEditingController(
-      text: widget.service['description'],
-    );
-    _priceController = TextEditingController(
-      text: widget.service['price'].toString(),
-    );
+    _descriptionController = TextEditingController(text: widget.service['description']);
+    _priceController = TextEditingController(text: widget.service['price'].toString());
     _selectedCategory = widget.service['category'];
+    _selectedSubcategory = widget.service['subcategory'];
 
     _currentImageFiles = List<File>.from(widget.service['image_files'] ?? []);
-    _currentNetworkImageUrls = List<String>.from(
-      widget.service['image_urls'] ?? [],
-    );
+    _currentNetworkImageUrls = List<String>.from(widget.service['image_urls'] ?? []);
   }
 
   @override
@@ -564,11 +517,7 @@ class _ServiceFormState extends State<ServiceForm> {
   }
 
   Future<void> _pickImages() async {
-    // FIX 2: Changed from `List<XFile>?` to `List<XFile>` and updated the check.
-    final List<XFile> pickedFiles = await _picker.pickMultiImage(
-      imageQuality: 70,
-    );
-
+    final List<XFile> pickedFiles = await _picker.pickMultiImage(imageQuality: 70);
     if (pickedFiles.isNotEmpty) {
       setState(() {
         _currentImageFiles.addAll(pickedFiles.map((e) => File(e.path)));
@@ -579,6 +528,10 @@ class _ServiceFormState extends State<ServiceForm> {
 
   @override
   Widget build(BuildContext context) {
+    List<String> subcategories = _selectedCategory != null
+        ? widget.subcategoriesMap[_selectedCategory!] ?? []
+        : [];
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 2,
@@ -596,25 +549,16 @@ class _ServiceFormState extends State<ServiceForm> {
                   onPressed: widget.onRemove,
                 ),
               ),
-              const Text(
-                "Service Images",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              const Text("Service Images", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  // FIX 3: Removed unnecessary .toList()
                   ..._currentImageFiles.map<Widget>((file) {
                     return Stack(
                       children: [
-                        Image.file(
-                          file,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
+                        Image.file(file, width: 100, height: 100, fit: BoxFit.cover),
                         Positioned(
                           right: 0,
                           top: 0,
@@ -631,16 +575,10 @@ class _ServiceFormState extends State<ServiceForm> {
                       ],
                     );
                   }),
-                  // FIX 4: Removed unnecessary .toList()
                   ..._currentNetworkImageUrls.map<Widget>((url) {
                     return Stack(
                       children: [
-                        Image.network(
-                          url,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
+                        Image.network(url, width: 100, height: 100, fit: BoxFit.cover),
                         Positioned(
                           right: 0,
                           top: 0,
@@ -670,21 +608,37 @@ class _ServiceFormState extends State<ServiceForm> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Service Category',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                 value: _selectedCategory,
                 items: widget.categories
-                    .map(
-                      (c) => DropdownMenuItem<String>(value: c, child: Text(c)),
-                    )
+                    .map<DropdownMenuItem<String>>(
+                        (c) => DropdownMenuItem<String>(value: c, child: Text(c)))
                     .toList(),
                 onChanged: (val) {
-                  setState(() => _selectedCategory = val);
+                  setState(() {
+                    _selectedCategory = val;
+                    _selectedSubcategory = null;
+                  });
                   widget.onCategoryChanged(val);
+                  widget.onSubcategoryChanged(null);
                 },
                 validator: (v) => v == null ? 'Please select a category' : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Subcategory', border: OutlineInputBorder()),
+                value: _selectedSubcategory,
+                items: subcategories
+                    .map<DropdownMenuItem<String>>((sub) => DropdownMenuItem<String>(
+                          value: sub,
+                          child: Text(sub),
+                        ))
+                    .toList(),
+                onChanged: (val) {
+                  setState(() => _selectedSubcategory = val);
+                  widget.onSubcategoryChanged(val);
+                },
+                validator: (v) => v == null ? 'Please select a subcategory' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
