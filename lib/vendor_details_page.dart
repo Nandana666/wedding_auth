@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'chat_page.dart';
-import 'fake_payment_page.dart'; // <-- IMPORT THE NEW PAGE
+import 'fake_payment_page.dart';
 
 class VendorDetailsPage extends StatefulWidget {
   final String vendorId;
@@ -24,7 +24,6 @@ class VendorDetailsPage extends StatefulWidget {
 }
 
 class _VendorDetailsPageState extends State<VendorDetailsPage> {
-  // ... all the existing state variables are fine ...
   bool isShortlisted = false;
   bool isLoading = true;
   Set<String> serviceCategories = {};
@@ -36,7 +35,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     _extractServiceCategories();
   }
 
-  // ... All methods from initState down to _processFakePayment are correct and unchanged ...
   @override
   void dispose() {
     super.dispose();
@@ -94,9 +92,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       );
       return;
     }
-    final userRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid);
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(user.uid);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     setState(() => isShortlisted = !isShortlisted);
     if (isShortlisted) {
@@ -164,7 +161,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     }
   }
 
-  Future<void> _createBookingRecord(DateTime eventDate, double amount) async {
+  Future<void> _createBookingRecord(
+      DateTime eventDate, double amount, String serviceTitle) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -173,6 +171,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         .doc(user.uid)
         .get();
     final userName = userDoc.data()?['name'] ?? 'Anonymous User';
+    final userEmail = user.email ?? 'N/A';
     final String testPaymentId =
         'test_pay_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -182,6 +181,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       'vendorCategory': widget.vendorData['categories']?.join(', ') ?? 'N/A',
       'userId': user.uid,
       'userName': userName,
+      'userEmail': userEmail,
+      'serviceTitle': serviceTitle,
       'bookingDate': Timestamp.now(),
       'eventDate': Timestamp.fromDate(eventDate),
       'advancePayment': amount,
@@ -198,6 +199,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         .collection('vendors')
         .doc(widget.vendorId)
         .collection('bookings');
+
     await userBookingsRef.add(bookingData);
     await vendorBookingsRef.add(bookingData);
 
@@ -211,31 +213,31 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     }
   }
 
-  // --- THIS IS THE ONLY METHOD THAT CHANGES ---
-  // We replace the AlertDialog with our new FakePaymentPage
-  Future<void> _processFakePayment(DateTime eventDate, double amount) async {
-    // Navigate to our new payment page and wait for a result.
+  Future<void> _processFakePayment(
+      DateTime eventDate, double amount, String serviceTitle) async {
     final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => FakePaymentPage(amount: amount)),
+      MaterialPageRoute(
+          builder: (context) => FakePaymentPage(
+                amount: amount,
+                merchantName: widget.vendorData['name'] ?? 'Vendor',
+              )),
     );
 
-    // If the page returned 'true', it means the payment was a success.
     if (result == true) {
-      // Now we create the booking record, just like before.
-      await _createBookingRecord(eventDate, amount);
+      await _createBookingRecord(eventDate, amount, serviceTitle);
     } else {
-      // Handle the case where the user backs out of the payment page.
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Payment cancelled.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Payment cancelled.')));
       }
     }
   }
 
-  Future<void> _showBookingDialog() async {
+  Future<void> _showBookingDialogForService(
+      String serviceTitle, double amount) async {
     DateTime? selectedDate;
-    final amountController = TextEditingController();
+    final amountController =
+        TextEditingController(text: amount.toStringAsFixed(2));
     final formKey = GlobalKey<FormState>();
 
     return showDialog(
@@ -244,7 +246,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Book This Vendor'),
+              title: Text('Book $serviceTitle'),
               content: Form(
                 key: formKey,
                 child: Column(
@@ -256,19 +258,16 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                       title: Text(
                         selectedDate == null
                             ? 'Select Event Date'
-                            : DateFormat(
-                                'EEE, MMM d, yyyy',
-                              ).format(selectedDate!),
+                            : DateFormat('EEE, MMM d, yyyy')
+                                .format(selectedDate!),
                       ),
                       onTap: () async {
                         final pickedDate = await showDatePicker(
                           context: context,
-                          initialDate: DateTime.now().add(
-                            const Duration(days: 1),
-                          ),
-                          firstDate: DateTime.now().add(
-                            const Duration(days: 1),
-                          ),
+                          initialDate:
+                              DateTime.now().add(const Duration(days: 1)),
+                          firstDate:
+                              DateTime.now().add(const Duration(days: 1)),
                           lastDate: DateTime(2101),
                         );
                         if (pickedDate != null) {
@@ -279,7 +278,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: amountController,
-                      keyboardType: TextInputType.number,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Advance Amount (₹)',
                         prefixIcon: Icon(Icons.currency_rupee),
@@ -309,16 +309,14 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                     if (selectedDate == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Please select an event date.'),
-                        ),
+                            content: Text('Please select an event date.')),
                       );
                       return;
                     }
                     if (formKey.currentState!.validate()) {
-                      final amount = double.parse(amountController.text);
+                      final newAmount = double.parse(amountController.text);
                       Navigator.of(context).pop();
-                      // This now calls the method that opens our new page
-                      _processFakePayment(selectedDate!, amount);
+                      _processFakePayment(selectedDate!, newAmount, serviceTitle);
                     }
                   },
                 ),
@@ -330,7 +328,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     );
   }
 
-  // ... The rest of the file (build method and helpers) is completely unchanged ...
   @override
   Widget build(BuildContext context) {
     final String name = widget.vendorData['name'] ?? 'Vendor Name';
@@ -549,63 +546,19 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                           title: 'Email Address',
                           content: email,
                         ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: _startOrGoToChat,
+                        icon: const Icon(Icons.message_outlined),
+                        label: const Text('Message'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 50),
+                          backgroundColor: const Color(0xFF2575FC),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 40),
-                    Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(
-                              Icons.event_available,
-                              color: Colors.white,
-                            ),
-                            label: const Text(
-                              'Book Now',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            onPressed: _showBookingDialog,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              backgroundColor: const Color(0xFFF472B6),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(
-                              Icons.message_outlined,
-                              color: Colors.white,
-                            ),
-                            label: const Text(
-                              'Send a Message',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            onPressed: _startOrGoToChat,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              backgroundColor: const Color(0xFF2575FC),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -625,6 +578,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     final String description =
         service['description'] ?? 'No description available.';
     final String price = service['price']?.toString() ?? 'N/A';
+    final double servicePrice = double.tryParse(price) ?? 0.0;
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -678,16 +633,34 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                   style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Text(
-                    'Starts from ₹$price',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF6A11CB),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Starts from ₹$price',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6A11CB),
+                      ),
                     ),
-                  ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _showBookingDialogForService(title, servicePrice);
+                      },
+                      icon: const Icon(Icons.event_available, size: 18),
+                      label: const Text('Book'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF472B6),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

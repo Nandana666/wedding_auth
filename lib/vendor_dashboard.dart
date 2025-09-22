@@ -6,9 +6,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_service.dart';
 import 'edit_vendor_profile_page.dart';
 import 'chat_list_page.dart';
+import 'booking_details_page.dart';
 
-class VendorDashboard extends StatelessWidget {
+class VendorDashboard extends StatefulWidget {
   const VendorDashboard({super.key});
+
+  @override
+  State<VendorDashboard> createState() => _VendorDashboardState();
+}
+
+class _VendorDashboardState extends State<VendorDashboard> {
+  Map<String, dynamic> vendorData = {};
 
   @override
   Widget build(BuildContext context) {
@@ -52,21 +60,20 @@ class VendorDashboard extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            // This case handles a new vendor who has an auth record but no firestore doc yet
             return _buildIncompleteProfileView(context);
           }
 
-          final vendorData = snapshot.data!.data() as Map<String, dynamic>;
+          vendorData = snapshot.data!.data() as Map<String, dynamic>;
           final String status = vendorData['status'] ?? 'incomplete';
 
           switch (status) {
             case 'incomplete':
               return _buildIncompleteProfileView(context);
             case 'pending_approval':
-              return _buildDashboardView(context, vendorData, isPending: true);
+              return _buildDashboardView(context, isPending: true);
             case 'approved':
-              return _buildDashboardView(context, vendorData, isPending: false);
-            default: // Catches 'declined' and any other unexpected status
+              return _buildDashboardView(context, isPending: false);
+            default:
               return _buildDeclinedView(context);
           }
         },
@@ -74,7 +81,6 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // --- WIDGET FOR 'incomplete' STATUS ---
   Widget _buildIncompleteProfileView(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -118,12 +124,7 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // --- SHARED WIDGET FOR 'approved' & 'pending_approval' STATUSES ---
-  Widget _buildDashboardView(
-    BuildContext context,
-    Map<String, dynamic> vendorData, {
-    required bool isPending,
-  }) {
+  Widget _buildDashboardView(BuildContext context, {required bool isPending}) {
     final String companyLogo = vendorData['company_logo'] ?? '';
     final String companyName = vendorData['name'] ?? 'Vendor';
     final String location = vendorData['location'] ?? 'Unknown Location';
@@ -133,7 +134,6 @@ class VendorDashboard extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // --- VENDOR PROFILE HEADER ---
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -185,11 +185,7 @@ class VendorDashboard extends StatelessWidget {
               if (isPending)
                 const Column(
                   children: [
-                    Icon(
-                      Icons.hourglass_top_rounded,
-                      size: 40,
-                      color: Colors.amber,
-                    ),
+                    Icon(Icons.hourglass_top_rounded, size: 40, color: Colors.amber),
                     SizedBox(height: 8),
                     Text(
                       'Profile Under Review',
@@ -206,11 +202,7 @@ class VendorDashboard extends StatelessWidget {
               if (!isPending)
                 const Column(
                   children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      size: 40,
-                      color: Colors.green,
-                    ),
+                    Icon(Icons.check_circle_outline, size: 40, color: Colors.green),
                     SizedBox(height: 8),
                     Text(
                       'Profile Approved',
@@ -224,7 +216,6 @@ class VendorDashboard extends StatelessWidget {
         ),
         const SizedBox(height: 24),
 
-        // --- MANAGE PROFILE & CHAT BUTTONS ---
         _buildMenuItem(
           context: context,
           icon: Icons.edit_outlined,
@@ -246,14 +237,13 @@ class VendorDashboard extends StatelessWidget {
           ),
         ),
 
-        // --- NEW: CLIENT BOOKINGS SECTION ---
         const SizedBox(height: 24),
         const Text(
           'Client Bookings',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        _buildClientBookings(vendorId), // <-- NEW WIDGET CALL
+        _buildClientBookings(vendorId),
 
         const SizedBox(height: 24),
         const Text(
@@ -262,7 +252,6 @@ class VendorDashboard extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // --- LIST OF SERVICES ---
         if (services.isEmpty)
           const Center(
             child: Text(
@@ -277,7 +266,6 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // --- NEW: WIDGET TO DISPLAY BOOKINGS FOR THE VENDOR ---
   Widget _buildClientBookings(String vendorId) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -314,36 +302,49 @@ class VendorDashboard extends StatelessWidget {
           itemCount: bookings.length,
           itemBuilder: (context, index) {
             final booking = bookings[index].data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF2575FC).withAlpha(40),
-                  child: Text(
-                    (booking['userName'] ?? 'U')[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2575FC),
+            return InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BookingDetailsPage(
+                      booking: booking,
+                      vendorData: vendorData,
                     ),
                   ),
+                );
+              },
+              child: Card(
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                title: Text(
-                  booking['userName'] ?? 'Client',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Event Date: ${_formatDate(booking['eventDate'])}"),
-                    Text(
-                      "Advance Received: ₹${booking['advancePayment'] ?? 0}",
+                elevation: 2,
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFF2575FC).withAlpha(40),
+                    child: Text(
+                      (booking['userName'] ?? 'U')[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2575FC),
+                      ),
                     ),
-                    Text("Status: ${booking['eventStatus'] ?? 'N/A'}"),
-                  ],
+                  ),
+                  title: Text(
+                    booking['userName'] ?? 'Client',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Event Date: ${_formatDate(booking['eventDate'])}"),
+                      Text("Advance Received: ₹${booking['advancePayment'] ?? 0}"),
+                      Text("Status: ${booking['eventStatus'] ?? 'N/A'}"),
+                      // This line is updated to use 'bookingDate'
+                      Text("Booking Date: ${_formatBookingDate(booking['bookingDate'] as Timestamp?)}"),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -353,7 +354,6 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // --- WIDGET FOR 'declined' STATUS ---
   Widget _buildDeclinedView(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.all(24.0),
@@ -422,7 +422,7 @@ class VendorDashboard extends StatelessWidget {
         children: [
           if (imageUrls.isNotEmpty)
             SizedBox(
-              height: 200, // Fixed height for the image carousel
+              height: 200,
               child: PageView.builder(
                 itemCount: imageUrls.length,
                 itemBuilder: (context, index) {
@@ -485,10 +485,26 @@ class VendorDashboard extends StatelessWidget {
     );
   }
 
-  // --- NEW: Helper to format dates (can be shared) ---
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "N/A";
     final date = timestamp.toDate();
+    return "${date.day}/${date.month}/${date.year}";
+  }
+  
+  String _formatBookingDate(Timestamp? timestamp) {
+    if (timestamp == null) {
+      return "N/A";
+    }
+    
+    final date = timestamp.toDate();
+    final today = DateTime.now();
+
+    if (date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day) {
+      return "Today's Date";
+    }
+
     return "${date.day}/${date.month}/${date.year}";
   }
 }
