@@ -35,11 +35,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     _extractServiceCategories();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   void _extractServiceCategories() {
     final List<dynamic> services = widget.vendorData['services'] ?? [];
     Set<String> categories = {};
@@ -56,9 +51,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
   Future<void> _checkIfShortlisted() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
       return;
     }
     try {
@@ -75,12 +68,10 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
           });
         }
       }
-    } catch (e) {
+    } catch (_) {
       // silent error
     } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -328,6 +319,107 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     );
   }
 
+  void _showRatingDialog(String serviceTitle) {
+    double selectedRating = 0;
+    final reviewController = TextEditingController();
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to submit a review.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Rate $serviceTitle'),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < selectedRating
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: Colors.amber,
+                          size: 32,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            selectedRating = index + 1.0;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reviewController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Write a review',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (selectedRating == 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select a rating.')),
+                  );
+                  return;
+                }
+
+                final reviewText = reviewController.text.trim();
+
+                await FirebaseFirestore.instance
+                    .collection('vendors')
+                    .doc(widget.vendorId)
+                    .collection('services')
+                    .doc(serviceTitle)
+                    .collection('reviews')
+                    .add({
+                  'userId': user.uid,
+                  'rating': selectedRating,
+                  'review': reviewText,
+                  'timestamp': FieldValue.serverTimestamp(),
+                });
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Thank you for your feedback!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final String name = widget.vendorData['name'] ?? 'Vendor Name';
@@ -546,19 +638,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                           title: 'Email Address',
                           content: email,
                         ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        onPressed: _startOrGoToChat,
-                        icon: const Icon(Icons.message_outlined),
-                        label: const Text('Message'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                          backgroundColor: const Color(0xFF2575FC),
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
                     ],
-                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -566,84 +646,68 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+  onPressed: _startOrGoToChat,
+  label: const Text(
+    'Message Vendor',
+    style: TextStyle(color: Colors.white), // ✅ FONT COLOR SET TO WHITE
+  ),
+  icon: const Icon(Icons.chat, color: Colors.white), // ✅ ICON COLOR WHITE
+  backgroundColor: const Color(0xFF6A11CB),
+),
+
     );
   }
 
-  Widget _buildServiceCard(dynamic service) {
-    if (service is! Map<String, dynamic>) {
-      return const SizedBox.shrink();
-    }
-    final List<dynamic> imageUrls = service['image_urls'] ?? [];
-    final String title = service['title'] ?? 'No Title';
-    final String description =
-        service['description'] ?? 'No description available.';
-    final String price = service['price']?.toString() ?? 'N/A';
-    final double servicePrice = double.tryParse(price) ?? 0.0;
+  Widget _buildServiceCard(Map<String, dynamic> service) {
+    final String title = service['title'] ?? 'Service';
+    final String price = service['price']?.toString() ?? '0';
+    final String description = service['description'] ?? '';
+
+    double servicePrice = 0;
+    try {
+      servicePrice = double.parse(price);
+    } catch (_) {}
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300, width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
       margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (imageUrls.isNotEmpty)
-            SizedBox(
-              height: 200,
-              child: PageView.builder(
-                itemCount: imageUrls.length,
-                controller: PageController(),
-                itemBuilder: (context, index) {
-                  final url = imageUrls[index];
-                  return Image.network(
-                    url,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 200,
-                      color: Colors.grey.shade200,
-                      child: const Center(
-                        child: Icon(Icons.broken_image, color: Colors.grey),
-                      ),
-                    ),
-                  );
-                },
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 8),
+            if (description.isNotEmpty)
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  title,
+                  'Starts from ₹$price',
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    color: Color(0xFF6A11CB),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
-                ),
-                const SizedBox(height: 12),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Starts from ₹$price',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF6A11CB),
-                      ),
-                    ),
                     ElevatedButton.icon(
                       onPressed: () {
                         _showBookingDialogForService(title, servicePrice);
@@ -660,12 +724,29 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                             horizontal: 12, vertical: 8),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _showRatingDialog(title);
+                      },
+                      icon: const Icon(Icons.star_rate, size: 18),
+                      label: const Text('Rate'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2575FC),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -676,24 +757,23 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     required String content,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: Colors.grey.shade600, size: 28),
-        const SizedBox(width: 16),
+        Icon(icon, color: const Color(0xFF6A11CB)),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 16),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 5),
               Text(
                 content,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(color: Colors.grey.shade800, fontSize: 14),
               ),
             ],
           ),
