@@ -24,16 +24,14 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
   Future<void> _approveVendor() async {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
-
     try {
       await FirebaseFirestore.instance
           .collection('vendors')
           .doc(widget.vendorId)
           .update({
-            'status': 'approved',
-            'approvedAt': FieldValue.serverTimestamp(),
-          });
-
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -58,13 +56,11 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
   Future<void> _declineVendor() async {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
-
     try {
       await FirebaseFirestore.instance
           .collection('vendors')
           .doc(widget.vendorId)
           .update({'status': 'declined'});
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -88,8 +84,10 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String? companyLogoUrl = widget.vendorData['company_logo'];
-    final List<dynamic> services = widget.vendorData['services'] ?? [];
+    final vendor = widget.vendorData;
+    final List<dynamic> categories = vendor['categories'] ?? [];
+    final List<dynamic> services = vendor['services'] ?? [];
+    final String? logoUrl = vendor['company_logo'];
 
     return Scaffold(
       appBar: AppBar(
@@ -101,33 +99,30 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- VENDOR HEADER CARD ---
+            // Vendor Info
             Card(
               elevation: 6,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: Colors.deepPurpleAccent,
                       backgroundImage:
-                          (companyLogoUrl != null && companyLogoUrl.isNotEmpty)
-                          ? NetworkImage(companyLogoUrl)
-                          : null,
-                      child: (companyLogoUrl == null || companyLogoUrl.isEmpty)
+                          (logoUrl != null && logoUrl.isNotEmpty)
+                              ? NetworkImage(logoUrl)
+                              : null,
+                      child: (logoUrl == null || logoUrl.isEmpty)
                           ? Text(
-                              widget.vendorData['name'] != null &&
-                                      widget.vendorData['name'].isNotEmpty
-                                  ? widget.vendorData['name'][0].toUpperCase()
+                              vendor['name'] != null && vendor['name'].isNotEmpty
+                                  ? vendor['name'][0].toUpperCase()
                                   : 'V',
                               style: const TextStyle(
-                                fontSize: 30,
-                                color: Colors.white,
-                              ),
+                                  fontSize: 30, color: Colors.white),
                             )
                           : null,
                     ),
@@ -137,20 +132,45 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.vendorData['name'] ?? "No Name",
+                            vendor['name'] ?? 'No Name',
                             style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
+                                fontSize: 22, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Location: ${widget.vendorData['location'] ?? 'N/A'}',
+                            'Location: ${vendor['location'] ?? 'N/A'}',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[700],
                             ),
                           ),
+                          if (vendor['phone'] != null)
+                            Text(
+                              'Phone: ${vendor['phone']}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          if (vendor['address'] != null)
+                            Text(
+                              'Address: ${vendor['address']}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          if (vendor['description'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                vendor['description'],
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -160,42 +180,54 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
             ),
             const SizedBox(height: 16),
 
-            // --- SERVICES HEADING ---
-            const Text(
-              'Submitted Services',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            // --- LIST OF SERVICES ---
-            if (services.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.0),
-                child: Center(
-                  child: Text(
-                    'No services have been submitted for this vendor.',
+            // Categories
+            if (categories.isNotEmpty)
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: categories
+                        .map((c) => Chip(
+                              label: Text(c.toString()),
+                              backgroundColor: Colors.deepPurple.shade100,
+                            ))
+                        .toList(),
                   ),
                 ),
               ),
-            ...services.map((service) {
-              return _buildServiceCard(service);
-            }),
+            const SizedBox(height: 16),
+
+            // Services
+            const Text(
+              'Services Submitted',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (services.isEmpty)
+              const Center(
+                child: Text('No services submitted.'),
+              ),
+            ...services.map((service) => _buildServiceCard(service)),
           ],
         ),
       ),
       bottomNavigationBar: _isProcessing
           ? const LinearProgressIndicator()
           : Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.close, color: Colors.white),
-                      label: const Text(
-                        'Decline',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      label: const Text('Decline',
+                          style: TextStyle(color: Colors.white)),
                       onPressed: _declineVendor,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
@@ -210,10 +242,8 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.check, color: Colors.white),
-                      label: const Text(
-                        'Approve',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      label: const Text('Approve',
+                          style: TextStyle(color: Colors.white)),
                       onPressed: _approveVendor,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green.shade600,
@@ -231,6 +261,8 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
   }
 
   Widget _buildServiceCard(Map<String, dynamic> service) {
+    final List<dynamic> images = service['image_urls'] ?? [];
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -238,24 +270,41 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (service['image_url'] != null && service['image_url'].isNotEmpty)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: Image.network(
-                service['image_url'],
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 200,
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Colors.grey,
-                        size: 50,
+          if (images.isNotEmpty)
+            SizedBox(
+              height: 200,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: images.length,
+                itemBuilder: (context, index) {
+                  final imageUrl = images[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => Dialog(
+                            child: Image.network(imageUrl, fit: BoxFit.contain),
+                          ),
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl,
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 200,
+                            height: 200,
+                            color: Colors.grey.shade300,
+                            child: const Center(
+                              child: Icon(Icons.broken_image, size: 50),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   );
@@ -270,24 +319,25 @@ class _VendorRequestDetailPageState extends State<VendorRequestDetailPage> {
                 Text(
                   service['title'] ?? 'No Title',
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '₹${service['price'] ?? 'N/A'}',
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.deepPurple,
-                  ),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.deepPurple),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   service['description'] ?? 'No description provided.',
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
+                if (service['category'] != null)
+                  Text('Category: ${service['category']}'),
+                if (service['subcategory'] != null)
+                  Text('Subcategory: ${service['subcategory']}'),
               ],
             ),
           ),
