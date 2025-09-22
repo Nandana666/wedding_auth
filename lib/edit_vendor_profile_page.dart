@@ -24,8 +24,8 @@ class _EditVendorProfilePageState extends State<EditVendorProfilePage> {
 
   Set<String> _selectedCategories = {};
   final Map<String, List<String>> _subcategories = {
-    'Makeup': ['Bridal', 'Party', 'Casual'],
-    'Catering': ['Vegetarian', 'Non-Vegetarian', 'Desserts'],
+    'Makeup': ['Bridal', 'Party', 'Casual','hair-styling'],
+    'Catering': ['Vegetarian', 'Non-Vegetarian', 'Desserts',],
     'Photography': ['Wedding', 'Pre-wedding', 'Events'],
     'Decor': ['Indoor', 'Outdoor', 'Theme'],
     'Venues': ['Hall', 'Garden', 'Beach'],
