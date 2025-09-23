@@ -40,7 +40,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     Set<String> categories = {};
     for (var service in services) {
       if (service is Map && service.containsKey('category')) {
-        categories.add(service['category'] as String);
+        categories.add((service['category'] ?? '').toString());
       }
     }
     setState(() {
@@ -69,7 +69,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         }
       }
     } catch (_) {
-      // silent error
+      // ignore errors
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -319,6 +319,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     );
   }
 
+  /// Rating dialog (stars + review) — submit button styled violet with white text
   void _showRatingDialog(String serviceTitle) {
     double selectedRating = 0;
     final reviewController = TextEditingController();
@@ -341,26 +342,27 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Star selector
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(5, (index) {
+                      final starIndex = index + 1;
                       return IconButton(
                         icon: Icon(
-                          index < selectedRating
-                              ? Icons.star
-                              : Icons.star_border,
+                          starIndex <= selectedRating ? Icons.star : Icons.star_border,
                           color: Colors.amber,
                           size: 32,
                         ),
                         onPressed: () {
                           setState(() {
-                            selectedRating = index + 1.0;
+                            selectedRating = starIndex.toDouble();
                           });
                         },
                       );
                     }),
                   ),
                   const SizedBox(height: 10),
+                  // Review text
                   TextField(
                     controller: reviewController,
                     maxLines: 3,
@@ -375,7 +377,10 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                reviewController.dispose();
+                Navigator.pop(context);
+              },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -389,30 +394,49 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
 
                 final reviewText = reviewController.text.trim();
 
-                await FirebaseFirestore.instance
-                    .collection('vendors')
-                    .doc(widget.vendorId)
-                    .collection('services')
-                    .doc(serviceTitle)
-                    .collection('reviews')
-                    .add({
-                  'userId': user.uid,
-                  'rating': selectedRating,
-                  'review': reviewText,
-                  'timestamp': FieldValue.serverTimestamp(),
-                });
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('vendors')
+                      .doc(widget.vendorId)
+                      .collection('services')
+                      .doc(serviceTitle)
+                      .collection('reviews')
+                      .add({
+                    'userId': user.uid,
+                    'rating': selectedRating,
+                    'review': reviewText,
+                    'timestamp': FieldValue.serverTimestamp(),
+                  });
 
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Thank you for your feedback!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Thank you for your feedback!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to submit review: $e')),
+                    );
+                  }
+                } finally {
+                  reviewController.dispose();
                 }
               },
-              child: const Text('Submit'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6A11CB), // violet background
+                foregroundColor: Colors.white, // white text
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text(
+                'Submit',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
@@ -432,9 +456,12 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     final String email = widget.vendorData['email'] ?? '';
     final String imageUrl = widget.vendorData['company_logo'] ?? '';
     final List<dynamic> services = widget.vendorData['services'] ?? [];
-    final categoriesToDisplay = widget.preSelectedCategory != null
+
+    final Set<String> categoriesToDisplay = widget.preSelectedCategory != null
         ? {widget.preSelectedCategory!}
-        : serviceCategories;
+        : (serviceCategories.isNotEmpty
+            ? serviceCategories
+            : categories.map((c) => c.toString()).toSet());
 
     return Scaffold(
       body: CustomScrollView(
@@ -499,6 +526,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Header row with categories and location
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -546,6 +574,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                         ),
                       ],
                     ),
+
+                    // About
                     if (description.isNotEmpty) ...[
                       const Divider(height: 40, thickness: 1),
                       const Text(
@@ -565,6 +595,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                         ),
                       ),
                     ],
+
+                    // Services / Packages
                     const Divider(height: 40, thickness: 1),
                     const Text(
                       'Services Offered',
@@ -574,6 +606,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
+
                     if (services.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
@@ -584,17 +617,18 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                         ),
                       )
                     else
+                      // Group and display services by category
                       ...categoriesToDisplay.map((category) {
                         final servicesInCategory = services
-                            .where(
-                              (service) =>
-                                  service is Map &&
-                                  service['category'] == category,
-                            )
+                            .where((service) =>
+                                service is Map &&
+                                (service['category'] ?? '').toString() ==
+                                    category)
                             .toList();
                         if (servicesInCategory.isEmpty) {
                           return const SizedBox.shrink();
                         }
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -607,9 +641,21 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            ...servicesInCategory.map(
-                              (service) => _buildServiceCard(service),
-                            ),
+                            // Each service card is a dedicated stateful widget so its PageController is managed properly
+                            ...servicesInCategory.map((s) {
+                              final Map<String, dynamic> service =
+                                  Map<String, dynamic>.from(s as Map);
+                              final String title = service['title']?.toString() ?? 'Service';
+                              final double price =
+                                  double.tryParse(service['price']?.toString() ?? '0') ?? 0.0;
+                              return _ServiceCard(
+                                service: service,
+                                vendorId: widget.vendorId,
+                                onBook: (svcTitle, svcPrice) =>
+                                    _showBookingDialogForService(svcTitle, svcPrice),
+                                onRate: (svcTitle) => _showRatingDialog(svcTitle),
+                              );
+                            }).toList(),
                             const SizedBox(height: 24),
                           ],
                         );
@@ -658,139 +704,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     );
   }
 
-  // UPDATED METHOD: _buildServiceCard to handle multiple images
-  Widget _buildServiceCard(Map<String, dynamic> service) {
-    final String title = service['title'] ?? 'Service';
-    final String price = service['price']?.toString() ?? '0';
-    final String description = service['description'] ?? '';
-    final List<dynamic> imageUrls = service['imageUrls'] ?? []; // **Changed to a list**
-
-    double servicePrice = 0;
-    try {
-      servicePrice = double.parse(price);
-    } catch (_) {}
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (imageUrls.isNotEmpty)
-            SizedBox(
-              height: 200, // Fixed height for the PageView
-              child: PageView.builder(
-                itemCount: imageUrls.length,
-                itemBuilder: (context, index) {
-                  return ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    child: Image.network(
-                      imageUrls[index],
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          Container(
-                            color: Colors.grey.shade300,
-                            child: const Center(
-                              child: Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                            ),
-                          ),
-                    ),
-                  );
-                },
-              ),
-            )
-          else
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: const Center(
-                child: Icon(Icons.photo_library, size: 50, color: Colors.grey),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (description.isNotEmpty)
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Starts from ₹$price',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF6A11CB),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            _showBookingDialogForService(title, servicePrice);
-                          },
-                          icon: const Icon(Icons.event_available, size: 18),
-                          label: const Text('Book'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF472B6),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            _showRatingDialog(title);
-                          },
-                          icon: const Icon(Icons.star_rate, size: 18),
-                          label: const Text('Rate'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2575FC),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDetailRow({
     required IconData icon,
     required String title,
@@ -819,6 +732,235 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A small stateful widget to render a service card with pageable images.
+/// This keeps the PageController lifecycle localized and avoids leaks.
+class _ServiceCard extends StatefulWidget {
+  final Map<String, dynamic> service;
+  final String vendorId;
+  final void Function(String serviceTitle, double price) onBook;
+  final void Function(String serviceTitle) onRate;
+
+  const _ServiceCard({
+    required this.service,
+    required this.vendorId,
+    required this.onBook,
+    required this.onRate,
+  });
+
+  @override
+  State<_ServiceCard> createState() => _ServiceCardState();
+}
+
+class _ServiceCardState extends State<_ServiceCard> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _pageController.addListener(() {
+      final p = _pageController.page;
+      if (p != null && mounted) {
+        setState(() {
+          _currentPage = p.round();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildDotsIndicator(int count) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (i) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: _currentPage == i ? 8 : 6,
+          height: _currentPage == i ? 8 : 6,
+          decoration: BoxDecoration(
+            color: _currentPage == i ? const Color(0xFF6A11CB) : Colors.white70,
+            border: Border.all(color: Colors.black12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+        );
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = widget.service;
+    final String title = service['title']?.toString() ?? 'Service';
+    final String priceStr = service['price']?.toString() ?? '0';
+    final double price = double.tryParse(priceStr) ?? 0.0;
+    final String description = service['description']?.toString() ?? '';
+    final List<dynamic> imageUrls = service['image_urls'] ?? [];
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Images slider
+          if (imageUrls.isNotEmpty)
+            SizedBox(
+              height: 200,
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    controller: _pageController,
+                    itemCount: imageUrls.length,
+                    itemBuilder: (context, index) {
+                      final url = imageUrls[index]?.toString() ?? '';
+                      return ClipRRect(
+                        borderRadius:
+                            const BorderRadius.vertical(top: Radius.circular(12)),
+                        child: url.isNotEmpty
+                            ? Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                  color: Colors.grey.shade300,
+                                  child: const Center(
+                                    child: Icon(Icons.broken_image,
+                                        size: 50, color: Colors.grey),
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                color: Colors.grey.shade300,
+                                child: const Center(
+                                  child: Icon(Icons.photo, size: 50, color: Colors.grey),
+                                ),
+                              ),
+                      );
+                    },
+                  ),
+
+                  // top-right 1/x badge
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_currentPage + 1}/${imageUrls.length}',
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                  ),
+
+                  // bottom center dots
+                  if (imageUrls.length > 1)
+                    Positioned(
+                      bottom: 8,
+                      left: 0,
+                      right: 0,
+                      child: _buildDotsIndicator(imageUrls.length),
+                    ),
+                ],
+              ),
+            )
+          else
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: const Center(
+                child: Icon(Icons.photo_library, size: 50, color: Colors.grey),
+              ),
+            ),
+
+          // Content area
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Rate & Review button under images (full width)
+                ElevatedButton.icon(
+                  onPressed: () => widget.onRate(title),
+                  icon: const Icon(Icons.star, color: Colors.white),
+                  label: const Text('Rate & Review', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6A11CB), // violet
+                    minimumSize: const Size(double.infinity, 40),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Title & description
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                if (description.isNotEmpty)
+                  Text(
+                    description,
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                  ),
+                const SizedBox(height: 12),
+
+                // Price + Book button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Starts from ₹$priceStr',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6A11CB),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => widget.onBook(title, price),
+                          icon: const Icon(Icons.event_available, size: 18),
+                          label: const Text('Book'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF472B6),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
