@@ -647,22 +647,23 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-  onPressed: _startOrGoToChat,
-  label: const Text(
-    'Message Vendor',
-    style: TextStyle(color: Colors.white), // ✅ FONT COLOR SET TO WHITE
-  ),
-  icon: const Icon(Icons.chat, color: Colors.white), // ✅ ICON COLOR WHITE
-  backgroundColor: const Color(0xFF6A11CB),
-),
-
+        onPressed: _startOrGoToChat,
+        label: const Text(
+          'Message Vendor',
+          style: TextStyle(color: Colors.white),
+        ),
+        icon: const Icon(Icons.chat, color: Colors.white),
+        backgroundColor: const Color(0xFF6A11CB),
+      ),
     );
   }
 
+  // UPDATED METHOD: _buildServiceCard to handle multiple images
   Widget _buildServiceCard(Map<String, dynamic> service) {
     final String title = service['title'] ?? 'Service';
     final String price = service['price']?.toString() ?? '0';
     final String description = service['description'] ?? '';
+    final List<dynamic> imageUrls = service['imageUrls'] ?? []; // **Changed to a list**
 
     double servicePrice = 0;
     try {
@@ -673,80 +674,119 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 4,
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (imageUrls.isNotEmpty)
+            SizedBox(
+              height: 200, // Fixed height for the PageView
+              child: PageView.builder(
+                itemCount: imageUrls.length,
+                itemBuilder: (context, index) {
+                  return ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                    child: Image.network(
+                      imageUrls[index],
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(
+                            color: Colors.grey.shade300,
+                            child: const Center(
+                              child: Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                            ),
+                          ),
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: const Center(
+                child: Icon(Icons.photo_library, size: 50, color: Colors.grey),
               ),
             ),
-            const SizedBox(height: 8),
-            if (description.isNotEmpty)
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Starts from ₹$price',
+                  title,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF6A11CB),
                   ),
                 ),
+                const SizedBox(height: 8),
+                if (description.isNotEmpty)
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _showBookingDialogForService(title, servicePrice);
-                      },
-                      icon: const Icon(Icons.event_available, size: 18),
-                      label: const Text('Book'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF472B6),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                    Text(
+                      'Starts from ₹$price',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6A11CB),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _showRatingDialog(title);
-                      },
-                      icon: const Icon(Icons.star_rate, size: 18),
-                      label: const Text('Rate'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2575FC),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showBookingDialogForService(title, servicePrice);
+                          },
+                          icon: const Icon(Icons.event_available, size: 18),
+                          label: const Text('Book'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF472B6),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                      ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showRatingDialog(title);
+                          },
+                          icon: const Icon(Icons.star_rate, size: 18),
+                          label: const Text('Rate'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2575FC),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
