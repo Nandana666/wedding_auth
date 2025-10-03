@@ -26,6 +26,7 @@ class VendorDetailsPage extends StatefulWidget {
 class _VendorDetailsPageState extends State<VendorDetailsPage> {
   bool isShortlisted = false;
   bool isLoading = true;
+  bool showReviews = false; // <-- Added
   Set<String> serviceCategories = {};
 
   @override
@@ -68,9 +69,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
           });
         }
       }
-    } catch (_) {
-      // ignore errors
-    } finally {
+    } catch (_) {}
+    finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
@@ -319,131 +319,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     );
   }
 
-  /// Rating dialog (stars + review) — submit button styled violet with white text
-  void _showRatingDialog(String serviceTitle) {
-    double selectedRating = 0;
-    final reviewController = TextEditingController();
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to submit a review.')),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Rate $serviceTitle'),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Star selector
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      final starIndex = index + 1;
-                      return IconButton(
-                        icon: Icon(
-                          starIndex <= selectedRating ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 32,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            selectedRating = starIndex.toDouble();
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 10),
-                  // Review text
-                  TextField(
-                    controller: reviewController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Write a review',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                reviewController.dispose();
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (selectedRating == 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select a rating.')),
-                  );
-                  return;
-                }
-
-                final reviewText = reviewController.text.trim();
-
-                try {
-                  await FirebaseFirestore.instance
-                      .collection('vendors')
-                      .doc(widget.vendorId)
-                      .collection('services')
-                      .doc(serviceTitle)
-                      .collection('reviews')
-                      .add({
-                    'userId': user.uid,
-                    'rating': selectedRating,
-                    'review': reviewText,
-                    'timestamp': FieldValue.serverTimestamp(),
-                  });
-
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Thank you for your feedback!'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to submit review: $e')),
-                    );
-                  }
-                } finally {
-                  reviewController.dispose();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6A11CB), // violet background
-                foregroundColor: Colors.white, // white text
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text(
-                'Submit',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final String name = widget.vendorData['name'] ?? 'Vendor Name';
@@ -617,7 +492,6 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                         ),
                       )
                     else
-                      // Group and display services by category
                       ...categoriesToDisplay.map((category) {
                         final servicesInCategory = services
                             .where((service) =>
@@ -641,25 +515,28 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            // Each service card is a dedicated stateful widget so its PageController is managed properly
                             ...servicesInCategory.map((s) {
                               final Map<String, dynamic> service =
                                   Map<String, dynamic>.from(s as Map);
-                              final String title = service['title']?.toString() ?? 'Service';
-                              final double price =
-                                  double.tryParse(service['price']?.toString() ?? '0') ?? 0.0;
+                              final String title =
+                                  service['title']?.toString() ?? 'Service';
+                              final double price = double.tryParse(
+                                      service['price']?.toString() ?? '0') ??
+                                  0.0;
                               return _ServiceCard(
                                 service: service,
                                 vendorId: widget.vendorId,
                                 onBook: (svcTitle, svcPrice) =>
-                                    _showBookingDialogForService(svcTitle, svcPrice),
-                                onRate: (svcTitle) => _showRatingDialog(svcTitle),
+                                    _showBookingDialogForService(
+                                        svcTitle, svcPrice),
                               );
                             }).toList(),
                             const SizedBox(height: 24),
                           ],
                         );
                       }),
+
+                    // Contact Info
                     if (contact.isNotEmpty || email.isNotEmpty) ...[
                       const Divider(height: 40, thickness: 1),
                       const Text(
@@ -685,6 +562,37 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                           content: email,
                         ),
                     ],
+
+                    // ======= Reviews Section =======
+                    const Divider(height: 40, thickness: 1),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          showReviews = !showReviews;
+                        });
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'View Reviews',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Icon(
+                            showReviews
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                            size: 28,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (showReviews)
+                      _ExpandableVendorReviews(vendorId: widget.vendorId),
                   ],
                 ),
               ),
@@ -736,19 +644,84 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
   }
 }
 
-/// A small stateful widget to render a service card with pageable images.
-/// This keeps the PageController lifecycle localized and avoids leaks.
+// ======================= Expandable Reviews Widget =======================
+
+class _ExpandableVendorReviews extends StatelessWidget {
+  final String vendorId;
+  const _ExpandableVendorReviews({required this.vendorId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('reviews')
+          .where('vendorId', isEqualTo: vendorId)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: Text('No reviews yet')),
+          );
+        }
+        final docs = snapshot.data!.docs;
+
+        return SizedBox(
+          height: 300, // fixed height to prevent auto-pop
+          child: ListView.builder(
+            shrinkWrap: true,
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              final rating = (data['rating'] ?? 0).toInt();
+              return ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                leading: CircleAvatar(
+                  child: Text(
+                    data['userName'] != null && data['userName'].isNotEmpty
+                        ? data['userName'][0]
+                        : '?',
+                  ),
+                ),
+                title: Text(data['userName'] ?? 'User'),
+                subtitle: Text(data['comment'] ?? ''),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    5,
+                    (i) => Icon(
+                      i < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ======================= Service Card =======================
+
 class _ServiceCard extends StatefulWidget {
   final Map<String, dynamic> service;
   final String vendorId;
   final void Function(String serviceTitle, double price) onBook;
-  final void Function(String serviceTitle) onRate;
 
   const _ServiceCard({
     required this.service,
     required this.vendorId,
     required this.onBook,
-    required this.onRate,
   });
 
   @override
@@ -813,7 +786,6 @@ class _ServiceCardState extends State<_ServiceCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Images slider
           if (imageUrls.isNotEmpty)
             SizedBox(
               height: 200,
@@ -850,26 +822,6 @@ class _ServiceCardState extends State<_ServiceCard> {
                       );
                     },
                   ),
-
-                  // top-right 1/x badge
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_currentPage + 1}/${imageUrls.length}',
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ),
-                  ),
-
-                  // bottom center dots
                   if (imageUrls.length > 1)
                     Positioned(
                       bottom: 8,
@@ -891,27 +843,11 @@ class _ServiceCardState extends State<_ServiceCard> {
                 child: Icon(Icons.photo_library, size: 50, color: Colors.grey),
               ),
             ),
-
-          // Content area
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Rate & Review button under images (full width)
-                ElevatedButton.icon(
-                  onPressed: () => widget.onRate(title),
-                  icon: const Icon(Icons.star, color: Colors.white),
-                  label: const Text('Rate & Review', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6A11CB), // violet
-                    minimumSize: const Size(double.infinity, 40),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Title & description
                 Text(
                   title,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -923,8 +859,6 @@ class _ServiceCardState extends State<_ServiceCard> {
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                   ),
                 const SizedBox(height: 12),
-
-                // Price + Book button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -936,23 +870,19 @@ class _ServiceCardState extends State<_ServiceCard> {
                         color: Color(0xFF6A11CB),
                       ),
                     ),
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () => widget.onBook(title, price),
-                          icon: const Icon(Icons.event_available, size: 18),
-                          label: const Text('Book'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF472B6),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
+                    ElevatedButton.icon(
+                      onPressed: () => widget.onBook(title, price),
+                      icon: const Icon(Icons.event_available, size: 18),
+                      label: const Text('Book'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF472B6),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ],
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
                     ),
                   ],
                 ),
