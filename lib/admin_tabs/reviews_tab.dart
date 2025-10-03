@@ -1,96 +1,123 @@
 // lib/admin_tabs/reviews_tab.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ReviewsTab extends StatelessWidget {
-  ReviewsTab({super.key});
-
-  final CollectionReference reviews = FirebaseFirestore.instance.collection('reviews');
-
-  Widget _buildRating(dynamic ratingValue) {
-    if (ratingValue is num) {
-      return Row(
-        children: List.generate(
-          ratingValue.toInt(),
-          (index) => const Icon(Icons.star, color: Colors.amber, size: 18),
-        ),
-      );
-    }
-    return Text("Rating: $ratingValue");
-  }
+  const ReviewsTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: reviews.orderBy('timestamp', descending: true).snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+    final reviewsCollection = FirebaseFirestore.instance.collection('reviews');
 
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) return const Center(child: Text('No reviews found.'));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('All Reviews'),
+        backgroundColor: const Color(0xFFF472B6),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: reviewsCollection.orderBy('createdAt', descending: true).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error fetching reviews: ${snapshot.error}'));
+          }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final review = docs[index];
-            final data = review.data() as Map<String, dynamic>?;
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            if (data == null) return const Card(child: ListTile(title: Text('Invalid review data')));
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(child: Text('No reviews found.'));
+          }
 
-            final rating = data['rating'] ?? 'N/A';
-            final comment = data['comment'] ?? 'No comment provided.';
-            final userName = data['userName'] ?? 'Unknown User';
-            final vendorName = data['vendorName'] ?? 'Unknown Vendor';
-            final serviceTitle = data['serviceTitle'] ?? 'Unknown Service';
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
 
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              child: ListTile(
-                title: _buildRating(rating),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(comment),
-                    const SizedBox(height: 6),
-                    Text("By: $userName for $vendorName ($serviceTitle)",
-                      style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('Delete Review'),
-                        content: const Text('Are you sure you want to delete this review?'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                          ),
-                        ],
+              final rating = (data['rating'] ?? 0).toDouble();
+              final comment = data['comment'] ?? 'No comment';
+              final userName = data['userName'] ?? 'Unknown User';
+              final vendorName = data['vendorName'] ?? 'Unknown Vendor';
+              final Timestamp? createdAt = data['createdAt'] as Timestamp?;
+              final dateString = createdAt != null
+                  ? "${createdAt.toDate().day}/${createdAt.toDate().month}/${createdAt.toDate().year}"
+                  : "Unknown date";
+
+              // Build stars
+              List<Widget> stars = [];
+              int fullStars = rating.floor();
+              bool halfStar = (rating - fullStars) >= 0.5;
+              for (int i = 0; i < fullStars; i++) {
+                stars.add(const Icon(Icons.star, color: Colors.amber, size: 18));
+              }
+              if (halfStar) {
+                stars.add(const Icon(Icons.star_half, color: Colors.amber, size: 18));
+              }
+              for (int i = stars.length; i < 5; i++) {
+                stars.add(const Icon(Icons.star_border, color: Colors.amber, size: 18));
+              }
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(12),
+                  title: Text(vendorName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      Row(children: stars),
+                      const SizedBox(height: 6),
+                      Text(comment),
+                      const SizedBox(height: 6),
+                      Text(
+                        "By $userName on $dateString",
+                        style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
                       ),
-                    );
-                    if (confirm == true) {
-                      await reviews.doc(review.id).delete();
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Review deleted')),
+                    ],
+                  ),
+                  isThreeLine: true,
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete, color: Colors.red.shade400),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete Review'),
+                          content: const Text('Are you sure you want to delete this review?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
                       );
-                    }
-                  },
+
+                      if (confirm == true) {
+                        await reviewsCollection.doc(docs[index].id).delete();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Review deleted')),
+                        );
+                      }
+                    },
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

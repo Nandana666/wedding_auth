@@ -53,10 +53,7 @@ class UserDashboard extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildSectionHeader('My Bookings / History'),
                   const SizedBox(height: 10),
-                  _buildBookingHistory(
-                    context,
-                    currentUser.uid,
-                  ), // Pass context
+                  _buildBookingHistory(context, currentUser.uid),
                   const SizedBox(height: 20),
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
@@ -136,8 +133,9 @@ class UserDashboard extends StatelessWidget {
 
             final eventDate = (booking['eventDate'] as Timestamp?)?.toDate();
             final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
-            final bool isEventOver =
-                eventDate != null && eventDate.isBefore(DateTime.now());
+
+            final bool isEventOver = eventDate != null &&
+                eventDate.toUtc().isBefore(DateTime.now().toUtc());
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -158,21 +156,11 @@ class UserDashboard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    _buildDetailRow("Category", booking['vendorCategory'] ?? 'N/A'),
+                    _buildDetailRow("Event Date", _formatDate(booking['eventDate'])),
                     _buildDetailRow(
-                      "Category",
-                      booking['vendorCategory'] ?? 'N/A',
-                    ),
-                    _buildDetailRow(
-                      "Event Date",
-                      _formatDate(booking['eventDate']),
-                    ),
-                    _buildDetailRow(
-                      "Advance Paid",
-                      "₹${booking['advancePayment'] ?? 0}",
-                    ),
-
+                        "Advance Paid", "₹${booking['advancePayment'] ?? 0}"),
                     const Divider(height: 20),
-
                     if (isEventOver && !hasBeenReviewed)
                       SizedBox(
                         width: double.infinity,
@@ -219,22 +207,19 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // --- THIS IS THE FIXED WIDGET ---
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start, // Align items to the top
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text("$label:", style: TextStyle(color: Colors.grey.shade600)),
-          const SizedBox(width: 8), // Add some space between label and value
-          // The Expanded widget is the key to the fix.
-          // It takes up all remaining horizontal space and allows its child to wrap.
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
               style: const TextStyle(fontWeight: FontWeight.w500),
-              textAlign: TextAlign.right, // Aligns text to the right
+              textAlign: TextAlign.right,
             ),
           ),
         ],
@@ -258,7 +243,6 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // ... (The rest of the file is unchanged) ...
   _buildProfileHeader(BuildContext context, Map<String, dynamic> userData) {
     final String name = userData['name'] ?? 'User';
     final String email = userData['email'] ?? 'No email';
@@ -277,10 +261,7 @@ class UserDashboard extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 16.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,24 +358,24 @@ class UserDashboard extends StatelessWidget {
   }
 
   Widget _buildShortlistedVendorsList(List<dynamic> vendorIds) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: vendorIds.length,
-      padding: EdgeInsets.zero,
-      itemBuilder: (context, index) {
-        final vendorId = vendorIds[index];
-        return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance
-              .collection('vendors')
-              .doc(vendorId)
-              .get(),
-          builder: (context, vendorSnapshot) {
-            if (!vendorSnapshot.hasData || !vendorSnapshot.data!.exists) {
-              return const SizedBox.shrink();
-            }
-            final vendorData =
-                vendorSnapshot.data!.data() as Map<String, dynamic>;
+    if (vendorIds.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('vendors')
+          .where(FieldPath.documentId, whereIn: vendorIds)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const CircularProgressIndicator();
+        final vendors = snapshot.data!.docs;
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: vendors.length,
+          itemBuilder: (context, index) {
+            final vendorData = vendors[index].data() as Map<String, dynamic>;
+            final vendorId = vendors[index].id;
             return _buildMenuItem(
               context: context,
               icon: Icons.storefront,
@@ -455,7 +436,8 @@ class UserDashboard extends StatelessWidget {
   }
 }
 
-// The ReviewDialog widget remains the same and is correct
+// ---------------- ReviewDialog ----------------
+
 class ReviewDialog extends StatefulWidget {
   final String bookingId;
   final String vendorId;
@@ -487,13 +469,10 @@ class _ReviewDialogState extends State<ReviewDialog> {
 
     setState(() => _isLoading = true);
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      setState(() => _isLoading = false);
-      return;
-    }
-
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -513,6 +492,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
       final batch = FirebaseFirestore.instance.batch();
       final reviewRef = FirebaseFirestore.instance.collection('reviews').doc();
       batch.set(reviewRef, reviewData);
+
       final userBookingRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -523,7 +503,8 @@ class _ReviewDialogState extends State<ReviewDialog> {
       await batch.commit();
 
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context, rootNavigator: true).pop();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Thank you for your review!'),
@@ -539,9 +520,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -586,7 +565,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
