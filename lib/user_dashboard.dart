@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+// NOTE: Ensure these files exist in your project structure
 import 'edit_user_profile_page.dart';
 import 'vendor_details_page.dart';
 import 'auth_service.dart';
@@ -53,7 +54,10 @@ class UserDashboard extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildSectionHeader('My Bookings / History'),
                   const SizedBox(height: 10),
-                  _buildBookingHistory(context, currentUser.uid),
+                  _buildBookingHistory(
+                    context,
+                    currentUser.uid,
+                  ), // Pass context
                   const SizedBox(height: 20),
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
@@ -133,9 +137,8 @@ class UserDashboard extends StatelessWidget {
 
             final eventDate = (booking['eventDate'] as Timestamp?)?.toDate();
             final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
-
-            final bool isEventOver = eventDate != null &&
-                eventDate.toUtc().isBefore(DateTime.now().toUtc());
+            final bool isEventOver =
+                eventDate != null && eventDate.isBefore(DateTime.now());
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -159,8 +162,20 @@ class UserDashboard extends StatelessWidget {
                     _buildDetailRow("Category", booking['vendorCategory'] ?? 'N/A'),
                     _buildDetailRow("Event Date", _formatDate(booking['eventDate'])),
                     _buildDetailRow(
-                        "Advance Paid", "₹${booking['advancePayment'] ?? 0}"),
+                      "Category",
+                      booking['vendorCategory'] ?? 'N/A',
+                    ),
+                    _buildDetailRow(
+                      "Event Date",
+                      _formatDate(booking['eventDate']),
+                    ),
+                    _buildDetailRow(
+                      "Advance Paid",
+                      "₹${booking['advancePayment'] ?? 0}",
+                    ),
+
                     const Divider(height: 20),
+
                     if (isEventOver && !hasBeenReviewed)
                       SizedBox(
                         width: double.infinity,
@@ -173,8 +188,8 @@ class UserDashboard extends StatelessWidget {
                               vendorName: booking['vendorName'],
                             );
                           },
-                          icon: const Icon(Icons.rate_review_outlined),
-                          label: const Text('Add a Review'),
+                          icon: const Icon(Icons.rate_review_outlined, color: Colors.white),
+                          label: const Text('Add a Review', style: TextStyle(color: Colors.white)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.orange,
                           ),
@@ -191,10 +206,21 @@ class UserDashboard extends StatelessWidget {
                         ),
                       )
                     else
-                      const Center(
-                        child: Text(
-                          "Review available after event",
-                          style: TextStyle(color: Colors.grey),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showCancelConfirmationDialog(
+                            context,
+                            bookingDoc.id,
+                            booking['vendorName'] ?? 'Vendor',
+                            advancePaid,
+                          ),
+                          icon: const Icon(Icons.cancel_outlined),
+                          label: const Text('Cancel Booking'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade400,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ),
                   ],
@@ -207,6 +233,7 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
+  // --- THIS IS THE FIXED WIDGET ---
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -219,12 +246,96 @@ class UserDashboard extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(fontWeight: FontWeight.w500),
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.right, // Aligns text to the right
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _showCancelConfirmationDialog(
+    BuildContext context,
+    String bookingId,
+    String vendorName,
+    double advancePaid,
+  ) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text("Confirm Cancellation"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  "Are you sure you want to cancel your booking with ${vendorName}?"),
+              const SizedBox(height: 10),
+              Text(
+                "Advance Payment Paid: ₹${advancePaid.toStringAsFixed(0)}",
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.orange),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "Note: Cancellations may be subject to the vendor's refund policy.",
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+              const Text(
+                "The refunded amount (if any) will be credited to your account within 1-2 working days.",
+                style: TextStyle(fontSize: 12, color: Colors.green),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("Keep Booking"),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text("Yes, Cancel",
+                  style: TextStyle(color: Colors.white)),
+              onPressed: () {
+                _cancelBooking(context, bookingId);
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _cancelBooking(BuildContext context, String bookingId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('bookings')
+          .doc(bookingId)
+          .update({'isCancelled': true});
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Booking successfully cancelled.'),
+            backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Failed to cancel booking: $e'),
+            backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _showReviewDialog(
@@ -243,6 +354,7 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
+  // ... (The rest of the file is unchanged) ...
   _buildProfileHeader(BuildContext context, Map<String, dynamic> userData) {
     final String name = userData['name'] ?? 'User';
     final String email = userData['email'] ?? 'No email';
@@ -436,8 +548,7 @@ class UserDashboard extends StatelessWidget {
   }
 }
 
-// ---------------- ReviewDialog ----------------
-
+// The ReviewDialog widget remains the same and is correct
 class ReviewDialog extends StatefulWidget {
   final String bookingId;
   final String vendorId;
