@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// NOTE: Ensure these files exist in your project structure
 import 'edit_user_profile_page.dart';
 import 'vendor_details_page.dart';
 import 'auth_service.dart';
@@ -57,7 +56,7 @@ class UserDashboard extends StatelessWidget {
                   _buildBookingHistory(
                     context,
                     currentUser.uid,
-                  ), // Pass context
+                  ),
                   const SizedBox(height: 20),
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
@@ -139,6 +138,8 @@ class UserDashboard extends StatelessWidget {
             final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
             final bool isEventOver =
                 eventDate != null && eventDate.isBefore(DateTime.now());
+            final double advancePaid =
+                (booking['advancePayment'] ?? 0).toDouble();
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -159,23 +160,12 @@ class UserDashboard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildDetailRow("Category", booking['vendorCategory'] ?? 'N/A'),
-                    _buildDetailRow("Event Date", _formatDate(booking['eventDate'])),
                     _buildDetailRow(
-                      "Category",
-                      booking['vendorCategory'] ?? 'N/A',
-                    ),
+                        "Category", booking['vendorCategory'] ?? 'N/A'),
                     _buildDetailRow(
-                      "Event Date",
-                      _formatDate(booking['eventDate']),
-                    ),
-                    _buildDetailRow(
-                      "Advance Paid",
-                      "₹${booking['advancePayment'] ?? 0}",
-                    ),
-
+                        "Event Date", _formatDate(booking['eventDate'])),
+                    _buildDetailRow("Advance Paid", "₹$advancePaid"),
                     const Divider(height: 20),
-
                     if (isEventOver && !hasBeenReviewed)
                       SizedBox(
                         width: double.infinity,
@@ -188,8 +178,10 @@ class UserDashboard extends StatelessWidget {
                               vendorName: booking['vendorName'],
                             );
                           },
-                          icon: const Icon(Icons.rate_review_outlined, color: Colors.white),
-                          label: const Text('Add a Review', style: TextStyle(color: Colors.white)),
+                          icon: const Icon(Icons.rate_review_outlined,
+                              color: Colors.white),
+                          label: const Text('Add a Review',
+                              style: TextStyle(color: Colors.white)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.orange,
                           ),
@@ -233,7 +225,6 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // --- THIS IS THE FIXED WIDGET ---
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -246,7 +237,7 @@ class UserDashboard extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(fontWeight: FontWeight.w500),
-              textAlign: TextAlign.right, // Aligns text to the right
+              textAlign: TextAlign.right,
             ),
           ),
         ],
@@ -270,7 +261,7 @@ class UserDashboard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                  "Are you sure you want to cancel your booking with ${vendorName}?"),
+                  "Are you sure you want to cancel your booking with $vendorName?"),
               const SizedBox(height: 10),
               Text(
                 "Advance Payment Paid: ₹${advancePaid.toStringAsFixed(0)}",
@@ -354,7 +345,6 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
-  // ... (The rest of the file is unchanged) ...
   _buildProfileHeader(BuildContext context, Map<String, dynamic> userData) {
     final String name = userData['name'] ?? 'User';
     final String email = userData['email'] ?? 'No email';
@@ -472,10 +462,13 @@ class UserDashboard extends StatelessWidget {
   Widget _buildShortlistedVendorsList(List<dynamic> vendorIds) {
     if (vendorIds.isEmpty) return const SizedBox.shrink();
 
+    // Firestore allows max 10 items in whereIn
+    final ids = vendorIds.length > 10 ? vendorIds.take(10).toList() : vendorIds;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('vendors')
-          .where(FieldPath.documentId, whereIn: vendorIds)
+          .where(FieldPath.documentId, whereIn: ids)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const CircularProgressIndicator();
@@ -512,7 +505,7 @@ class UserDashboard extends StatelessWidget {
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "N/A";
     final date = timestamp.toDate();
-    return "${date.day}/${date.month}/${date.year}";
+    return "${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}/${date.year}";
   }
 
   Widget _buildMenuItem({
@@ -548,7 +541,7 @@ class UserDashboard extends StatelessWidget {
   }
 }
 
-// The ReviewDialog widget remains the same and is correct
+// ReviewDialog remains unchanged
 class ReviewDialog extends StatefulWidget {
   final String bookingId;
   final String vendorId;
