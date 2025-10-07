@@ -5,10 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-// Assuming ReviewDialog, _showCancelConfirmationDialog, and _cancelBooking
-// are available, perhaps by moving them here or importing the UserDashboard.dart file.
-// For this example, I will include placeholder functions to ensure the code runs.
-
 class MyBookingsPage extends StatelessWidget {
   final String userId;
 
@@ -18,7 +14,6 @@ class MyBookingsPage extends StatelessWidget {
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "N/A";
     final date = timestamp.toDate();
-    // Use DateFormat from intl package for clean date formatting
     return DateFormat('dd/MM/yyyy').format(date);
   }
 
@@ -42,28 +37,16 @@ class MyBookingsPage extends StatelessWidget {
     );
   }
 
-  // Placeholder for the Review Dialog (you should implement this fully or import it)
+  // Placeholder for the Review Dialog
   void _showReviewDialog(
     BuildContext context, {
     required String bookingId,
     required String vendorId,
     required String vendorName,
   }) {
-    // Implement the actual ReviewDialog show logic here
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Review dialog functionality is here!')));
-  }
-
-  // Placeholder for the Cancel Confirmation Dialog (you should implement this fully or import it)
-  void _showCancelConfirmationDialog(
-    BuildContext context,
-    String bookingId,
-    String vendorName,
-    double advancePaid,
-  ) {
-    // Implement the actual cancel dialog show logic here
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cancel dialog for $vendorName is here!')));
+      const SnackBar(content: Text('Review dialog functionality is here!')),
+    );
   }
 
   @override
@@ -116,7 +99,7 @@ class MyBookingsPage extends StatelessWidget {
               final eventDate = (booking['eventDate'] as Timestamp?)?.toDate();
               final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
               final bool isCancelled = booking['isCancelled'] ?? false;
-              
+
               // Check if event is over
               final bool isEventOver =
                   eventDate != null && eventDate.isBefore(DateTime.now());
@@ -139,15 +122,21 @@ class MyBookingsPage extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
-                          color: isCancelled ? Colors.red.shade700 : Colors.black,
-                          decoration: isCancelled ? TextDecoration.lineThrough : TextDecoration.none,
+                          color: isCancelled
+                              ? Colors.red.shade700
+                              : Colors.black,
+                          decoration: isCancelled
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
                         ),
                       ),
                       Text(
                         isCancelled ? 'Status: Cancelled' : 'Status: Confirmed',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: isCancelled ? Colors.red.shade700 : Colors.green.shade700,
+                          color: isCancelled
+                              ? Colors.red.shade700
+                              : Colors.green.shade700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -157,15 +146,19 @@ class MyBookingsPage extends StatelessWidget {
                           "Service", booking['serviceTitle'] ?? 'N/A'),
                       _buildDetailRow(
                           "Event Date", _formatDate(booking['eventDate'])),
-                      _buildDetailRow("Amount Paid", "₹${advancePaid.toStringAsFixed(0)}"),
+                      _buildDetailRow(
+                          "Amount Paid", "₹${advancePaid.toStringAsFixed(0)}"),
                       const Divider(height: 20),
-                      
-                      // Action Buttons
+
+                      // Action Section (only review / cancelled)
                       if (isCancelled)
                         Center(
                           child: Text(
                             "This booking was cancelled.",
-                            style: TextStyle(color: Colors.red.shade400, fontStyle: FontStyle.italic),
+                            style: TextStyle(
+                              color: Colors.red.shade400,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
                         )
                       else if (isEventOver && !hasBeenReviewed)
@@ -196,25 +189,6 @@ class MyBookingsPage extends StatelessWidget {
                             style: TextStyle(
                               color: Colors.green,
                               fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      else
-                        // Cancel button for future bookings
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showCancelConfirmationDialog(
-                              context,
-                              bookingDoc.id,
-                              booking['vendorName'] ?? 'Vendor',
-                              advancePaid,
-                            ),
-                            icon: const Icon(Icons.cancel_outlined),
-                            label: const Text('Cancel Booking'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade400,
-                              foregroundColor: Colors.white,
                             ),
                           ),
                         ),
