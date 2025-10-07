@@ -199,8 +199,8 @@ class _BookingHistoryListState extends State<BookingHistoryList> {
             const Divider(),
             Text("Service: ${booking['serviceTitle'] ?? 'N/A'}"),
             Text("Event Date: ${DateFormat('dd MMM yyyy').format(eventDate)}"),
-            Text("Advance Paid: ₹${booking['advancePayment'] ?? 0}"),
-            Text("Status: ${booking['eventStatus'] ?? 'Upcoming'}"),
+            Text("Amount Paid: ₹${booking['advancePayment'] ?? 0}"),
+            //Text("Status: ${booking['eventStatus'] ?? 'Upcoming'}"),
             if (!widget.isVendorView)
               Padding(
                 padding: const EdgeInsets.only(top: 4.0),
@@ -266,18 +266,7 @@ class HistorySummary extends StatelessWidget {
           Icons.monetization_on,
           Colors.teal,
         ),
-        _buildSummaryCard(
-          "Upcoming",
-          upcoming.toString(),
-          Icons.event_available,
-          Colors.orange,
-        ),
-        _buildSummaryCard(
-          "Completed",
-          completed.toString(),
-          Icons.check_circle,
-          Colors.green,
-        ),
+       
       ],
     );
   }
