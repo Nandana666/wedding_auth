@@ -228,6 +228,7 @@ class BookingDetailsPage extends StatelessWidget {
               // --- Booking Details ---
               _buildDetailRow('Booked For', booking['serviceTitle'] ?? 'N/A'),
               _buildDetailRow('Event Date', _formatDate(booking['eventDate'])),
+               _buildDetailRow('Event Location', booking['eventLocation'] ?? 'N/A'),
               _buildDetailRow('Booking Date', _formatDateTime(booking['bookingDate'])),
               _buildDetailRow('Price', '₹${bookedService?['price'] ?? 'N/A'}'), // Use actual service price if found
               _buildDetailRow('Amount Paid', '₹${booking['advancePayment'] ?? 0}'),
@@ -253,6 +254,10 @@ class BookingDetailsPage extends StatelessWidget {
   }
 
   Widget _buildStatusBadge(String status) {
+    if (status.toLowerCase() == 'upcoming') {
+      return const SizedBox.shrink();
+    }
+    
     Color color;
     switch (status.toLowerCase()) {
       case 'confirmed':
