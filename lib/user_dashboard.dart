@@ -7,8 +7,6 @@ import 'edit_user_profile_page.dart';
 import 'vendor_details_page.dart';
 import 'auth_service.dart';
 import 'chat_list_page.dart';
-// ⭐ NEW IMPORT: Import the page that will show all bookings
-import 'my_bookings_page.dart'; // <-- You must create this file
 
 class UserDashboard extends StatelessWidget {
   const UserDashboard({super.key});
@@ -55,24 +53,10 @@ class UserDashboard extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildSectionHeader('My Bookings / History'),
                   const SizedBox(height: 10),
-                  // ⭐ NEW: Clickable card to view all bookings on a new page
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.calendar_month_outlined,
-                    title: 'View All Bookings',
-                    color: Colors.indigo.shade400,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          // Pass the current user's ID to the new page
-                          builder: (_) => MyBookingsPage(userId: currentUser.uid),
-                        ),
-                      );
-                    },
+                  _buildBookingHistory(
+                    context,
+                    currentUser.uid,
                   ),
-                  // _buildBookingHistory is removed from here
-
                   const SizedBox(height: 20),
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
@@ -111,10 +95,124 @@ class UserDashboard extends StatelessWidget {
       ),
     );
   }
-// --------------------------------------------------------------------------------------
-// ❌ The entire _buildBookingHistory function has been REMOVED from UserDashboard.
-//    It should be moved to my_bookings_page.dart (see below).
-// --------------------------------------------------------------------------------------
+
+  Widget _buildBookingHistory(BuildContext context, String userId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('bookings')
+          .orderBy('eventDate', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text(
+                "No bookings yet.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        }
+
+        final bookings = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: bookings.length,
+          itemBuilder: (context, index) {
+            final bookingDoc = bookings[index];
+            final booking = bookingDoc.data() as Map<String, dynamic>;
+
+            final eventDate = (booking['eventDate'] as Timestamp?)?.toDate();
+            final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
+            final bool isEventOver =
+                eventDate != null && eventDate.isBefore(DateTime.now());
+            final double advancePaid =
+                (booking['advancePayment'] ?? 0).toDouble();
+
+            // Extract the new event location field
+            final String eventLocation = booking['eventLocation'] ?? 'Not specified';
+
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      booking['vendorName'] ?? 'Vendor',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow(
+                        "Category", booking['vendorCategory'] ?? 'N/A'),
+                    _buildDetailRow(
+                        "Event Date", _formatDate(booking['eventDate'])),
+                    // New: Display Event Location
+                    _buildDetailRow("Location", eventLocation),
+                    _buildDetailRow("Amount Paid", "₹$advancePaid"),
+                    const Divider(height: 20),
+
+                    // Logic for Review or Reviewed status
+                    if (isEventOver && !hasBeenReviewed)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            _showReviewDialog(
+                              context,
+                              bookingId: bookingDoc.id,
+                              vendorId: booking['vendorId'],
+                              vendorName: booking['vendorName'],
+                            );
+                          },
+                          icon: const Icon(Icons.rate_review_outlined,
+                              color: Colors.white),
+                          label: const Text('Add a Review',
+                              style: TextStyle(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                          ),
+                        ),
+                      )
+                    else if (hasBeenReviewed)
+                      const Center(
+                        child: Text(
+                          "✔ Reviewed",
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
@@ -122,6 +220,10 @@ class UserDashboard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Use an Icon for Location
+          if (label == 'Location')
+            Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
           Text("$label:", style: TextStyle(color: Colors.grey.shade600)),
           const SizedBox(width: 8),
           Expanded(
@@ -129,100 +231,13 @@ class UserDashboard extends StatelessWidget {
               value,
               style: const TextStyle(fontWeight: FontWeight.w500),
               textAlign: TextAlign.right,
+              maxLines: 1, // Ensure the line doesn't wrap excessively
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
     );
-  }
-
-  // --------------------------------------------------------------------------------------
-  // ⚠ The following dialogs/functions are related to booking management, 
-  //    so I'll keep them in this file for now, 
-  //    but they will only be callable from the new MyBookingsPage. 
-  // --------------------------------------------------------------------------------------
-  void _showCancelConfirmationDialog(
-    BuildContext context,
-    String bookingId,
-    String vendorName,
-    double advancePaid,
-  ) {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text("Confirm Cancellation"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                  "Are you sure you want to cancel your booking with $vendorName?"),
-              const SizedBox(height: 10),
-              Text(
-                " Amount Paid: ₹${advancePaid.toStringAsFixed(0)}",
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.orange),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "Note: Cancellations may be subject to the vendor's refund policy.",
-                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-              ),
-              const Text(
-                "The refunded amount (if any) will be credited to your account within 1-2 working days.",
-                style: TextStyle(fontSize: 12, color: Colors.green),
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text("Keep Booking"),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text("Yes, Cancel",
-                  style: TextStyle(color: Colors.white)),
-              onPressed: () {
-                _cancelBooking(context, bookingId);
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _cancelBooking(BuildContext context, String bookingId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('bookings')
-          .doc(bookingId)
-          .update({'isCancelled': true});
-
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Booking successfully cancelled.'),
-            backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Failed to cancel booking: $e'),
-            backgroundColor: Colors.red),
-      );
-    }
   }
 
   void _showReviewDialog(
@@ -437,7 +452,7 @@ class UserDashboard extends StatelessWidget {
   }
 }
 
-// ReviewDialog remains in this file for now
+// ReviewDialog remains unchanged
 class ReviewDialog extends StatefulWidget {
   final String bookingId;
   final String vendorId;
@@ -564,10 +579,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-          child: const Text('Cancel'),
-        ),
+        // Note: The cancel button was previously removed from ReviewDialog
         ElevatedButton(
           onPressed: _isLoading ? null : _submitReview,
           child: _isLoading
