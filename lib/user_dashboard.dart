@@ -164,7 +164,7 @@ class UserDashboard extends StatelessWidget {
                         "Category", booking['vendorCategory'] ?? 'N/A'),
                     _buildDetailRow(
                         "Event Date", _formatDate(booking['eventDate'])),
-                    _buildDetailRow("Advance Paid", "₹$advancePaid"),
+                    _buildDetailRow("Amount Paid", "₹$advancePaid"),
                     const Divider(height: 20),
                     if (isEventOver && !hasBeenReviewed)
                       SizedBox(
@@ -264,7 +264,7 @@ class UserDashboard extends StatelessWidget {
                   "Are you sure you want to cancel your booking with $vendorName?"),
               const SizedBox(height: 10),
               Text(
-                "Advance Payment Paid: ₹${advancePaid.toStringAsFixed(0)}",
+                " Amount Paid: ₹${advancePaid.toStringAsFixed(0)}",
                 style: const TextStyle(
                     fontWeight: FontWeight.bold, color: Colors.orange),
               ),

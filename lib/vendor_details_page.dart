@@ -26,7 +26,7 @@ class VendorDetailsPage extends StatefulWidget {
 class _VendorDetailsPageState extends State<VendorDetailsPage> {
   bool isShortlisted = false;
   bool isLoading = true;
-  bool showReviews = false; // <-- Added
+  bool showReviews = false;
   Set<String> serviceCategories = {};
 
   @override
@@ -152,8 +152,9 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     }
   }
 
+  // UPDATED: Added eventLocation parameter
   Future<void> _createBookingRecord(
-      DateTime eventDate, double amount, String serviceTitle) async {
+      DateTime eventDate, double amount, String serviceTitle, String eventLocation) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -174,11 +175,12 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
       'userName': userName,
       'userEmail': userEmail,
       'serviceTitle': serviceTitle,
+      'eventLocation': eventLocation, // NEW FIELD
       'bookingDate': Timestamp.now(),
       'eventDate': Timestamp.fromDate(eventDate),
       'advancePayment': amount,
       'paymentId': testPaymentId,
-      'paymentStatus': 'Paid (Test)',
+      'paymentStatus': 'Paid ',
       'eventStatus': 'Upcoming',
     };
 
@@ -204,8 +206,9 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     }
   }
 
+  // UPDATED: Added eventLocation parameter
   Future<void> _processFakePayment(
-      DateTime eventDate, double amount, String serviceTitle) async {
+      DateTime eventDate, double amount, String serviceTitle, String eventLocation) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
           builder: (context) => FakePaymentPage(
@@ -215,7 +218,8 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     );
 
     if (result == true) {
-      await _createBookingRecord(eventDate, amount, serviceTitle);
+      // Passed eventLocation to _createBookingRecord
+      await _createBookingRecord(eventDate, amount, serviceTitle, eventLocation);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -224,11 +228,13 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
     }
   }
 
+  // UPDATED: Added new TextFormField for event location
   Future<void> _showBookingDialogForService(
       String serviceTitle, double amount) async {
     DateTime? selectedDate;
     final amountController =
         TextEditingController(text: amount.toStringAsFixed(2));
+    final locationController = TextEditingController(); // NEW
     final formKey = GlobalKey<FormState>();
 
     return showDialog(
@@ -243,6 +249,7 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Date Picker
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.calendar_today),
@@ -267,12 +274,32 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                       },
                     ),
                     const SizedBox(height: 10),
+
+                    // Event Location Field (NEW)
+                    TextFormField(
+                      controller: locationController,
+                      keyboardType: TextInputType.text,
+                      decoration: const InputDecoration(
+                        labelText: 'Event Location',
+                        hintText: 'e.g., The Grand Ballroom, City',
+                        prefixIcon: Icon(Icons.location_city),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter the event location';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Amount Field
                     TextFormField(
                       controller: amountController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
-                        labelText: 'Advance Amount (₹)',
+                        labelText: ' Amount (₹)',
                         prefixIcon: Icon(Icons.currency_rupee),
                       ),
                       validator: (value) {
@@ -306,8 +333,11 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                     }
                     if (formKey.currentState!.validate()) {
                       final newAmount = double.parse(amountController.text);
+                      final eventLocation = locationController.text; // Get location
                       Navigator.of(context).pop();
-                      _processFakePayment(selectedDate!, newAmount, serviceTitle);
+                      // Pass location to the payment process
+                      _processFakePayment(
+                          selectedDate!, newAmount, serviceTitle, eventLocation);
                     }
                   },
                 ),
@@ -644,6 +674,35 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
   }
 }
 
+// ======================= Reusable Star Rating Widget =======================
+
+class _StarRating extends StatelessWidget {
+  final int rating;
+  final double size;
+  final Color color;
+
+  const _StarRating({
+    required this.rating,
+    this.size = 20,
+    this.color = Colors.amber,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(
+        5,
+        (i) => Icon(
+          i < rating ? Icons.star : Icons.star_border,
+          color: color,
+          size: size,
+        ),
+      ),
+    );
+  }
+}
+
 // ======================= Expandable Reviews Widget =======================
 
 class _ExpandableVendorReviews extends StatelessWidget {
@@ -668,43 +727,116 @@ class _ExpandableVendorReviews extends StatelessWidget {
             child: Center(child: Text('No reviews yet')),
           );
         }
-        final docs = snapshot.data!.docs;
 
-        return SizedBox(
-          height: 300, // fixed height to prevent auto-pop
-          child: ListView.builder(
-            shrinkWrap: true,
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final rating = (data['rating'] ?? 0).toInt();
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                leading: CircleAvatar(
-                  child: Text(
-                    data['userName'] != null && data['userName'].isNotEmpty
-                        ? data['userName'][0]
-                        : '?',
+        final docs = snapshot.data!.docs;
+        final totalReviews = docs.length;
+        final double averageRating = docs.fold<int>(
+              0,
+              (sum, doc) => ((doc.data() as Map<String, dynamic>)['rating'] ?? 0).toInt() + sum,
+            ) /
+            totalReviews;
+        final int averageRatingRounded = averageRating.round();
+        final String formattedAverage = averageRating.toStringAsFixed(1);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Display Average Rating and Count (USING _StarRating)
+            Row(
+              children: [
+                _StarRating(rating: averageRatingRounded, size: 28),
+                const SizedBox(width: 8),
+                Text(
+                  formattedAverage,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                title: Text(data['userName'] ?? 'User'),
-                subtitle: Text(data['comment'] ?? ''),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(
-                    5,
-                    (i) => Icon(
-                      i < rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
-                  ),
+                const SizedBox(width: 8),
+                Text(
+                  '($totalReviews Reviews)',
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
                 ),
-              );
-            },
-          ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Reviews List
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final data = docs[index].data() as Map<String, dynamic>;
+                final rating = (data['rating'] ?? 0).toInt();
+                final Timestamp? timestamp = data['createdAt'];
+
+                String timeAgo = '';
+                if (timestamp != null) {
+                  final duration = DateTime.now().difference(timestamp.toDate());
+                  if (duration.inDays > 30) {
+                    timeAgo = DateFormat('MMM d, yyyy').format(timestamp.toDate());
+                  } else if (duration.inDays > 0) {
+                    timeAgo = '${duration.inDays} days ago';
+                  } else if (duration.inHours > 0) {
+                    timeAgo = '${duration.inHours} hours ago';
+                  } else {
+                    timeAgo = 'Just now';
+                  }
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: const Color(0xFF6A11CB).withOpacity(0.1),
+                                child: Text(
+                                  data['userName'] != null && data['userName'].isNotEmpty
+                                      ? data['userName'][0]
+                                      : '?',
+                                  style: const TextStyle(color: Color(0xFF6A11CB), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                data['userName'] ?? 'User',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                          // Star rating for individual review (USING _StarRating)
+                          _StarRating(rating: rating, size: 16),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 48.0, top: 4),
+                        child: Text(
+                          data['comment'] ?? '',
+                          style: TextStyle(color: Colors.grey.shade800),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 48.0, top: 2),
+                        child: Text(
+                          timeAgo,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
         );
       },
     );

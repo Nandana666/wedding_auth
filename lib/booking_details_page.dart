@@ -230,7 +230,7 @@ class BookingDetailsPage extends StatelessWidget {
               _buildDetailRow('Event Date', _formatDate(booking['eventDate'])),
               _buildDetailRow('Booking Date', _formatDateTime(booking['bookingDate'])),
               _buildDetailRow('Price', '₹${bookedService?['price'] ?? 'N/A'}'), // Use actual service price if found
-              _buildDetailRow('Advance Paid', '₹${booking['advancePayment'] ?? 0}'),
+              _buildDetailRow('Amount Paid', '₹${booking['advancePayment'] ?? 0}'),
               _buildDetailRow('Payment Status', booking['paymentStatus'] ?? 'N/A'),
             ],
           ),

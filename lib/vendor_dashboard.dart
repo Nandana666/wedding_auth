@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 import 'auth_service.dart';
 import 'edit_vendor_profile_page.dart';
 import 'chat_list_page.dart';
@@ -119,8 +119,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
             MaterialPageRoute(builder: (_) => const ChatListPage()),
           ),
         ),
-        
-        // --- NEW: Single Client Bookings Option ---
+
+        // --- Client Bookings Option ---
         _buildMenuItem(
           context: context,
           icon: Icons.event_note_outlined,
@@ -129,11 +129,24 @@ class _VendorDashboardState extends State<VendorDashboard> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ClientBookingsPage(vendorId: vendorId, vendorData: vendorData),
+              builder: (_) =>
+                  ClientBookingsPage(vendorId: vendorId, vendorData: vendorData),
             ),
           ),
         ),
-        // ------------------------------------------
+
+        _buildMenuItem(
+          context: context,
+          icon: Icons.reviews,
+          title: 'Reviews',
+          color: const Color.fromARGB(255, 205, 220, 71),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ExpandableVendorReviews(vendorId: vendorId),
+            ),
+          ),
+        ),
 
         const SizedBox(height: 24),
         const Text(
@@ -151,13 +164,14 @@ class _VendorDashboardState extends State<VendorDashboard> {
           ),
         ...services.map((service) {
           return _buildServiceCard(service as Map<String, dynamic>);
-        }).toList(),
+        }),
       ],
     );
   }
 
   // Helper function extracted from the original build method for clarity
-  Widget _buildProfileHeader(String logo, String name, String location, bool isPending) {
+  Widget _buildProfileHeader(
+      String logo, String name, String location, bool isPending) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -177,8 +191,11 @@ class _VendorDashboardState extends State<VendorDashboard> {
           CircleAvatar(
             radius: 50,
             backgroundColor: Colors.grey.shade200,
-            backgroundImage: logo.isNotEmpty ? NetworkImage(logo) as ImageProvider : null,
-            child: logo.isEmpty ? const Icon(Icons.business, size: 50, color: Colors.grey) : null,
+            backgroundImage:
+                logo.isNotEmpty ? NetworkImage(logo) as ImageProvider : null,
+            child: logo.isEmpty
+                ? const Icon(Icons.business, size: 50, color: Colors.grey)
+                : null,
           ),
           const SizedBox(height: 16),
           Text(
@@ -205,7 +222,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
           if (isPending)
             const Column(
               children: [
-                Icon(Icons.hourglass_top_rounded, size: 40, color: Colors.amber),
+                Icon(Icons.hourglass_top_rounded,
+                    size: 40, color: Colors.amber),
                 SizedBox(height: 8),
                 Text(
                   'Profile Under Review',
@@ -222,7 +240,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
           if (!isPending)
             const Column(
               children: [
-                Icon(Icons.check_circle_outline, size: 40, color: Colors.green),
+                Icon(Icons.check_circle_outline,
+                    size: 40, color: Colors.green),
                 SizedBox(height: 8),
                 Text(
                   'Profile Approved',
@@ -325,7 +344,8 @@ class _VendorDashboardState extends State<VendorDashboard> {
           ),
           child: Icon(icon, color: color),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title:
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         trailing: const Icon(
           Icons.arrow_forward_ios,
           size: 16,
@@ -409,23 +429,18 @@ class _VendorDashboardState extends State<VendorDashboard> {
       ),
     );
   }
-
-  String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return "N/A";
-    final date = timestamp.toDate();
-    return DateFormat('d MMM yyyy').format(date);
-  }
 }
 
 // ----------------------------------------------------------------------
-// --- NEW DEDICATED PAGE FOR GROUPED CLIENT BOOKINGS (EXTRACTED LOGIC) ---
+// --- DEDICATED PAGE FOR GROUPED CLIENT BOOKINGS ---
 // ----------------------------------------------------------------------
 
 class ClientBookingsPage extends StatelessWidget {
   final String vendorId;
   final Map<String, dynamic> vendorData;
 
-  const ClientBookingsPage({super.key, required this.vendorId, required this.vendorData});
+  const ClientBookingsPage(
+      {super.key, required this.vendorId, required this.vendorData});
 
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "N/A";
@@ -475,45 +490,44 @@ class ClientBookingsPage extends StatelessWidget {
             );
           }
 
-          final bookings = snapshot.data!.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+          final bookings = snapshot.data!.docs
+              .map((doc) => doc.data() as Map<String, dynamic>)
+              .toList();
 
-          // 1. Group bookings by a unique identifier (userId is preferred for grouping)
+          // Group bookings by userId (or fallback to userName)
           final Map<String, List<Map<String, dynamic>>> groupedBookings = {};
           for (var booking in bookings) {
-            // Use userId if available, fall back to userName as a key
-            final String key = booking['userId'] ?? booking['userName'] ?? 'Unknown Client';
-            if (!groupedBookings.containsKey(key)) {
-              groupedBookings[key] = [];
-            }
-            // Sort each client's bookings by date within the list (most recent first)
+            final String key =
+                booking['userId'] ?? booking['userName'] ?? 'Unknown Client';
+            groupedBookings.putIfAbsent(key, () => []);
             groupedBookings[key]!.add(booking);
           }
-          
-          // Re-sort the bookings for each client based on bookingDate just in case
+
           groupedBookings.forEach((key, list) {
-             list.sort((a, b) => (b['bookingDate'] as Timestamp).compareTo(a['bookingDate'] as Timestamp));
+            list.sort((a, b) =>
+                (b['bookingDate'] as Timestamp)
+                    .compareTo(a['bookingDate'] as Timestamp));
           });
 
           final List<String> clientKeys = groupedBookings.keys.toList();
 
-          // 2. Build a list displaying one item per unique client
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
             itemCount: clientKeys.length,
             itemBuilder: (context, index) {
               final clientKey = clientKeys[index];
               final clientBookings = groupedBookings[clientKey]!;
-              final clientName = clientBookings.first['userName'] ?? 'Unknown Client';
-              final lastBookingDate = clientBookings.first['bookingDate'] as Timestamp?;
+              final clientName =
+                  clientBookings.first['userName'] ?? 'Unknown Client';
+              final lastBookingDate =
+                  clientBookings.first['bookingDate'] as Timestamp?;
 
               return InkWell(
                 onTap: () {
-                  // FIX: Pass the ENTIRE list of bookings for this client
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => BookingDetailsPage(
-                        // *** THIS IS THE CORRECTED LINE ***
                         clientBookings: clientBookings,
                         vendorData: vendorData,
                       ),
@@ -530,7 +544,9 @@ class ClientBookingsPage extends StatelessWidget {
                     leading: CircleAvatar(
                       backgroundColor: const Color(0xFF6A11CB).withAlpha(40),
                       child: Text(
-                        clientName.isNotEmpty ? clientName[0].toUpperCase() : 'U',
+                        clientName.isNotEmpty
+                            ? clientName[0].toUpperCase()
+                            : 'U',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF6A11CB),
@@ -545,7 +561,137 @@ class ClientBookingsPage extends StatelessWidget {
                       "Total: ${clientBookings.length} booking(s). Last booked: ${_formatDate(lastBookingDate)}",
                       style: const TextStyle(color: Colors.grey),
                     ),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    trailing: const Icon(Icons.arrow_forward_ios,
+                        size: 16, color: Colors.grey),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------------------
+// --- VENDOR REVIEWS PAGE ---
+// ----------------------------------------------------------------------
+
+class ExpandableVendorReviews extends StatelessWidget {
+  final String vendorId;
+  const ExpandableVendorReviews({super.key, required this.vendorId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Vendor Reviews'),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('reviews')
+            .where('vendorId', isEqualTo: vendorId)
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Center(
+                child: Text('Error loading reviews. Please try again.'));
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'No reviews yet.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            );
+          }
+
+          final reviews = snapshot.data!.docs;
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: reviews.length,
+            itemBuilder: (context, index) {
+              final review =
+                  reviews[index].data() as Map<String, dynamic>? ?? {};
+              final String reviewerName = review['userName'] ?? 'Anonymous';
+              final int rating = (review['rating'] ?? 0).toInt();
+              final String comment = review['comment'] ?? '';
+              final Timestamp? createdAt = review['createdAt'];
+              final String formattedDate = createdAt != null
+                  ? DateFormat('d MMM yyyy').format(createdAt.toDate())
+                  : 'Unknown Date';
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor:
+                                const Color(0xFF6A11CB).withAlpha(40),
+                            child: Text(
+                              reviewerName.isNotEmpty
+                                  ? reviewerName[0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(color: Color(0xFF6A11CB)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(reviewerName,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
+                                Text(formattedDate,
+                                    style:
+                                        const TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            children: List.generate(
+                              5,
+                              (i) => Icon(
+                                i < rating
+                                    ? Icons.star
+                                    : Icons.star_border_outlined,
+                                color: Colors.amber,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        comment,
+                        style:
+                            const TextStyle(fontSize: 15, color: Colors.black87),
+                      ),
+                    ],
                   ),
                 ),
               );
