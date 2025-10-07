@@ -17,9 +17,7 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
   late TextEditingController _locationController;
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
-  late TextEditingController _reviewController;
 
-  double _rating = 0;
   bool _isSaving = false;
 
   @override
@@ -30,8 +28,6 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
     _locationController = TextEditingController(text: widget.userData['location']);
     _phoneController = TextEditingController(text: widget.userData['phone']);
     _addressController = TextEditingController(text: widget.userData['address']);
-    _reviewController = TextEditingController(text: widget.userData['review'] ?? '');
-    _rating = (widget.userData['rating'] ?? 0).toDouble();
   }
 
   @override
@@ -41,7 +37,6 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
     _locationController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _reviewController.dispose();
     super.dispose();
   }
 
@@ -57,8 +52,6 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
           'location': _locationController.text.trim(),
           'phone': _phoneController.text.trim(),
           'address': _addressController.text.trim(),
-          'review': _reviewController.text.trim(),
-          'rating': _rating,
         });
 
         // Update Auth email if changed
@@ -96,27 +89,6 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
         if (mounted) setState(() => _isSaving = false);
       }
     }
-  }
-
-  Widget _buildStarRating() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(5, (index) {
-        final starIndex = index + 1;
-        return IconButton(
-          icon: Icon(
-            Icons.star,
-            color: starIndex <= _rating ? Colors.amber : Colors.grey,
-            size: 32,
-          ),
-          onPressed: () {
-            setState(() {
-              _rating = starIndex.toDouble();
-            });
-          },
-        );
-      }),
-    );
   }
 
   @override
@@ -196,28 +168,13 @@ class _EditUserProfilePageState extends State<EditUserProfilePage> {
                   border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // Rating
-              const Text("Your Rating:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              _buildStarRating(),
-              const SizedBox(height: 20),
-
-              // Review
-              TextFormField(
-                controller: _reviewController,
-                decoration: const InputDecoration(
-                  labelText: 'Write a Review',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
               const SizedBox(height: 30),
 
-              // Save Button
+              // Save Button (Blue)
               ElevatedButton(
                 onPressed: _isSaving ? null : _saveChanges,
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple, // Blue save button
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: _isSaving
