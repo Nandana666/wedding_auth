@@ -322,6 +322,10 @@ class _VendorDetailsPageState extends State<VendorDetailsPage> {
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6A11CB),
+                    foregroundColor: Colors.white,
+                     ),
                   child: const Text('Proceed to Pay'),
                   onPressed: () {
                     if (selectedDate == null) {

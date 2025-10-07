@@ -7,6 +7,8 @@ import 'edit_user_profile_page.dart';
 import 'vendor_details_page.dart';
 import 'auth_service.dart';
 import 'chat_list_page.dart';
+// ⭐ NEW IMPORT: Import the page that will show all bookings
+import 'my_bookings_page.dart'; // <-- You must create this file
 
 class UserDashboard extends StatelessWidget {
   const UserDashboard({super.key});
@@ -53,10 +55,24 @@ class UserDashboard extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildSectionHeader('My Bookings / History'),
                   const SizedBox(height: 10),
-                  _buildBookingHistory(
-                    context,
-                    currentUser.uid,
+                  // ⭐ NEW: Clickable card to view all bookings on a new page
+                  _buildMenuItem(
+                    context: context,
+                    icon: Icons.calendar_month_outlined,
+                    title: 'View All Bookings',
+                    color: Colors.indigo.shade400,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          // Pass the current user's ID to the new page
+                          builder: (_) => MyBookingsPage(userId: currentUser.uid),
+                        ),
+                      );
+                    },
                   ),
+                  // _buildBookingHistory is removed from here
+
                   const SizedBox(height: 20),
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 10),
@@ -95,135 +111,10 @@ class UserDashboard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildBookingHistory(BuildContext context, String userId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('bookings')
-          .orderBy('eventDate', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                "No bookings yet.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        }
-
-        final bookings = snapshot.data!.docs;
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: bookings.length,
-          itemBuilder: (context, index) {
-            final bookingDoc = bookings[index];
-            final booking = bookingDoc.data() as Map<String, dynamic>;
-
-            final eventDate = (booking['eventDate'] as Timestamp?)?.toDate();
-            final bool hasBeenReviewed = booking['hasBeenReviewed'] ?? false;
-            final bool isEventOver =
-                eventDate != null && eventDate.isBefore(DateTime.now());
-            final double advancePaid =
-                (booking['advancePayment'] ?? 0).toDouble();
-
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      booking['vendorName'] ?? 'Vendor',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDetailRow(
-                        "Category", booking['vendorCategory'] ?? 'N/A'),
-                    _buildDetailRow(
-                        "Event Date", _formatDate(booking['eventDate'])),
-                    _buildDetailRow("Amount Paid", "₹$advancePaid"),
-                    const Divider(height: 20),
-                    if (isEventOver && !hasBeenReviewed)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            _showReviewDialog(
-                              context,
-                              bookingId: bookingDoc.id,
-                              vendorId: booking['vendorId'],
-                              vendorName: booking['vendorName'],
-                            );
-                          },
-                          icon: const Icon(Icons.rate_review_outlined,
-                              color: Colors.white),
-                          label: const Text('Add a Review',
-                              style: TextStyle(color: Colors.white)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                          ),
-                        ),
-                      )
-                    else if (hasBeenReviewed)
-                      const Center(
-                        child: Text(
-                          "✔ Reviewed",
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      )
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _showCancelConfirmationDialog(
-                            context,
-                            bookingDoc.id,
-                            booking['vendorName'] ?? 'Vendor',
-                            advancePaid,
-                          ),
-                          icon: const Icon(Icons.cancel_outlined),
-                          label: const Text('Cancel Booking'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade400,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+// --------------------------------------------------------------------------------------
+// ❌ The entire _buildBookingHistory function has been REMOVED from UserDashboard.
+//    It should be moved to my_bookings_page.dart (see below).
+// --------------------------------------------------------------------------------------
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
@@ -245,6 +136,11 @@ class UserDashboard extends StatelessWidget {
     );
   }
 
+  // --------------------------------------------------------------------------------------
+  // ⚠ The following dialogs/functions are related to booking management, 
+  //    so I'll keep them in this file for now, 
+  //    but they will only be callable from the new MyBookingsPage. 
+  // --------------------------------------------------------------------------------------
   void _showCancelConfirmationDialog(
     BuildContext context,
     String bookingId,
@@ -451,7 +347,7 @@ class UserDashboard extends StatelessWidget {
       child: const Padding(
         padding: EdgeInsets.all(24.0),
         child: Text(
-          'Tap the ❤️ on a vendor\'s page to save them here!',
+          'Tap the ❤ on a vendor\'s page to save them here!',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey),
         ),
@@ -541,7 +437,7 @@ class UserDashboard extends StatelessWidget {
   }
 }
 
-// ReviewDialog remains unchanged
+// ReviewDialog remains in this file for now
 class ReviewDialog extends StatefulWidget {
   final String bookingId;
   final String vendorId;
